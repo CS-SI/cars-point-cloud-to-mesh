@@ -1,0 +1,5 @@
+[run]
+source = cars_point_cloud_to_mesh
+omit =
+    # Omit tests
+    /tests/*

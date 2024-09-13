@@ -1,0 +1,58 @@
+Copyright (C) 2023 CS Group.
+
+This software is distributed under the Apache Software License (ASL) v2.0, see
+LICENSE file or http://www.apache.org/licenses/LICENSE-2.0 for details.
+
+------------------
+CARS Point Cloud To Mesh Dependencies
+------------------
+
+
+Python: programming language that lets you work quickly and integrate systems more effectively.
+Copyright (c) 2001-2020 Python Software Foundation. All Rights reserved.
+Website: http://python.org/
+License: Python Software License.
+
+CARS: a satellite multi view stereo framework
+Copyright 2020-2024, Centre National d'Etudes Spatiales (CNES)
+Website: https://github.com/CNES/cars
+License: Apache v2.0.
+
+
+SciPy: open-source software for mathematics, science, and engineering.
+Copyright (c) 2001, 2002 Enthought, Inc. All rights reserved.
+Copyright (c) 2003-2019 SciPy Developers. All rights reserved.
+Website: https://www.scipy.org/scipylib/
+License: BSD 3 Clause.
+
+Setuptools: build system
+Copyright (C) 2016 Jason R Coombs <jaraco@jaraco.com>
+Website: https://setuptools.readthedocs.io/
+License: MIT.
+
+Numba: NumPy aware dynamic Python compiler using LLVM
+Copyright (c) 2012, Anaconda, Inc.
+Website: https://numba.pydata.org/
+License: BSD 2 Clause.
+
+Xarray: N-D labeled arrays and datasets in Python
+Copyright 2014-2019, xarray Developers
+Website: http://xarray.pydata.org
+License: Apache v2.0.
+
+Json-checker: library for validating Python json data structures
+Copyright (c) 2018 Denis Korytkin
+Website: https://github.com/DKorytkin/json_checker
+Licence: MIT
+
+Rasterio: access to geospatial raster data
+Copyright (c) 2016, MapBox All rights reserved.
+Website: https://github.com/mapbox/rasterio
+License: BSD 3 Clause.
+
+triangle: a python wrapper around Jonathan Richard Shewchuk’s two-dimensional quality mesh generator and delaunay triangulator library
+Copyright (c) 2018 Denis Korytkin
+Website: https://rufat.be/triangle/
+Licence: LGPL 3.0
+
+
