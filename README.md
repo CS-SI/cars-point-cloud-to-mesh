@@ -1,5 +1,13 @@
 <div align="center">
-  <a href="https://gitlab.cnes.fr/cars/cars_point_cloud_to_mesh"><img src="docs/source/images/cars_logo.png" alt="CARS" title="CARS"  width="40%"></a>
+<a target="_blank" href="https://github.com/CNES/cars">
+<picture>
+  <img
+    src="https://raw.githubusercontent.com/CNES/cars/master/docs/source/images/cars_picto.svg"
+    alt="CARS"
+    width="50%"
+  />
+</picture>
+</a>
 
 <img src="docs/source/images/cars_mesh.png" width="80%">
 <h4>Cars Point cloud to Mesh</h4>
