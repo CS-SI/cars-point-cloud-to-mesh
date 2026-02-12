@@ -29,7 +29,7 @@ import cars.pipelines.point_clouds_to_dsm.pc_constants as pc_cst
 
 # CARS imports
 from cars.applications.application import Application
-from cars.applications.point_cloud_fusion import pc_tif_tools
+from cars_point_cloud_to_mesh.applications.point_cloud_fusion import pc_tif_tools
 from cars.core import constants as cst
 from cars.orchestrator import orchestrator
 from cars.pipelines.pipeline import Pipeline

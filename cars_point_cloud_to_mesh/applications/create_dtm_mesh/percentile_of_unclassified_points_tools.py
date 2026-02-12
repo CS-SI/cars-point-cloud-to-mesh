@@ -30,7 +30,7 @@ import os
 
 import numpy as np
 import rasterio as rio
-from cars.applications.holes_detection.holes_detection_tools import (
+from cars_point_cloud_to_mesh.applications.holes_detection.holes_detection_tools import (
     classif_to_stacked_array,
 )
 from rasterio.plot import reshape_as_raster

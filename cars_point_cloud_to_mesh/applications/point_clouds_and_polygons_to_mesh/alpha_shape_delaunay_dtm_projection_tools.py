@@ -24,7 +24,7 @@ All the functions used by the alpha_shape_delaunay_dtm_projection file
 
 import numpy as np
 import triangle as trlib
-from cars.applications.holes_detection.holes_detection_tools import (
+from cars_point_cloud_to_mesh.applications.holes_detection.holes_detection_tools import (
     classif_to_stacked_array,
 )
 from cars.core import projection

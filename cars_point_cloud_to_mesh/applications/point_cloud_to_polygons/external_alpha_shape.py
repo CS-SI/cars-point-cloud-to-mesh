@@ -30,7 +30,7 @@ import logging
 
 import cars.orchestrator.orchestrator as ocht
 import numpy as np
-from cars.applications.holes_detection.holes_detection_tools import (
+from cars_point_cloud_to_mesh.applications.holes_detection.holes_detection_tools import (
     classif_to_stacked_array,
 )
 from cars.core import projection, tiling
