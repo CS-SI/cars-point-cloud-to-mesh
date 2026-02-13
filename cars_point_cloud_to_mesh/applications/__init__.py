@@ -25,4 +25,6 @@ from . import (  # noqa: F401
     group_close_polygons,
     point_cloud_to_polygons,
     point_clouds_and_polygons_to_mesh,
+    point_cloud_fusion,
+    holes_detection,
 )
