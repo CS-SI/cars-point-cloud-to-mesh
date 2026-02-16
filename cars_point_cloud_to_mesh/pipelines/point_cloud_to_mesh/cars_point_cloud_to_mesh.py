@@ -24,23 +24,26 @@ Cars point cloud to meshes pipeline
 
 # Standard imports
 from __future__ import print_function
+import os
 
-import cars.pipelines.point_clouds_to_dsm.pc_constants as pc_cst
+import cars_point_cloud_to_mesh.pipelines.parameters.depth_map_inputs_constants as dm_cst
+from cars_point_cloud_to_mesh.applications.point_cloud_fusion import pc_tif_tools
 
 # CARS imports
 from cars.applications.application import Application
-from cars_point_cloud_to_mesh.applications.point_cloud_fusion import pc_tif_tools
+from cars.core.utils import safe_makedirs
 from cars.core import constants as cst
 from cars.orchestrator import orchestrator
+from cars.pipelines.parameters import output_constants as out_cst
 from cars.pipelines.pipeline import Pipeline
 from cars.pipelines.pipeline_constants import (
-    INPUTS,
+    INPUT,
     ORCHESTRATOR,
     OUTPUT,
     PIPELINE,
 )
 from cars.pipelines.pipeline_template import PipelineTemplate
-from cars.pipelines.point_clouds_to_dsm import pc_inputs
+import cars_point_cloud_to_mesh.pipelines.parameters.depth_map_inputs as dm_inputs
 from json_checker import Checker, Or
 
 
@@ -52,7 +55,7 @@ class PointCloudToMeshPipeline(PipelineTemplate):
     PointCloudToMeshPipeline
     """
 
-    def __init__(self, conf, config_json_dir=None):
+    def __init__(self, conf, config_dir=None):
         """
         Creates pipeline
 
@@ -60,8 +63,8 @@ class PointCloudToMeshPipeline(PipelineTemplate):
         :type pipeline_name: str
         :param cfg: configuration
         :type cfg: dictionary
-        :param config_json_dir: path to dir containing json
-        :type config_json_dir: str
+        :param config_dir: path to dir containing json
+        :type config_dir: str
         """
 
         # Used conf
@@ -71,38 +74,39 @@ class PointCloudToMeshPipeline(PipelineTemplate):
         self.used_conf[PIPELINE] = conf.get(PIPELINE, "point_cloud_to_mesh")
 
         # Default point clouds check
-        self.inputs = self.check_inputs(conf, config_json_dir=config_json_dir)
-        self.used_conf[INPUTS] = self.inputs
+        self.inputs = self.check_inputs(conf, config_dir=config_dir)
+        self.used_conf[INPUT] = self.inputs
 
         # Check output
-        self.output = self.check_output(conf.get(OUTPUT, None))
+        self.used_conf[OUTPUT] = self.check_output(conf.get(OUTPUT, None))
 
-        self.orchestrator_conf = self.check_orchestrator(
+        self.out_dir = self.used_conf[OUTPUT][out_cst.OUT_DIRECTORY]
+        
+        self.used_conf[ORCHESTRATOR] = self.check_orchestrator(
             conf.get(ORCHESTRATOR, None)
         )
-        self.used_conf[ORCHESTRATOR] = self.orchestrator_conf
 
         self.check_applications(conf["applications"])
 
-    def check_inputs(self, conf, config_json_dir=None):
+    def check_inputs(self, conf, config_dir=None):
 
         # remove unexpected tags
-        if "classification_buildings_description" not in conf[INPUTS]:
+        if "classification_buildings_description" not in conf[INPUT]:
             raise RuntimeError(
                 "No classification_buildings_description provided"
             )
-        if "dsm_color" not in conf[INPUTS]:
+        if "dsm_color" not in conf[INPUT]:
             raise RuntimeError("no dsm color provideds")
 
-        copied_classification_buildings_description = conf[INPUTS][
+        copied_classification_buildings_description = conf[INPUT][
             "classification_buildings_description"
         ]
-        copied_dsm_color = conf[INPUTS]["dsm_color"]
-        del conf[INPUTS]["classification_buildings_description"]
-        del conf[INPUTS]["dsm_color"]
+        copied_dsm_color = conf[INPUT]["dsm_color"]
+        del conf[INPUT]["classification_buildings_description"]
+        del conf[INPUT]["dsm_color"]
 
-        overloaded_conf = pc_inputs.check_point_clouds_inputs(
-            conf[INPUTS], config_json_dir=config_json_dir
+        overloaded_conf = dm_inputs.check_depth_map_inputs(
+            conf[INPUT], config_dir=config_dir
         )
 
         # add deleted data in input
@@ -111,24 +115,24 @@ class PointCloudToMeshPipeline(PipelineTemplate):
         )
         overloaded_conf["dsm_color"] = copied_dsm_color
 
-        pc_schema = {
-            cst.X: str,
-            cst.Y: str,
-            cst.Z: str,
+        dm_schema = {
+            cst.INDEX_DEPTH_MAP_X: str,
+            cst.INDEX_DEPTH_MAP_Y: str,
+            cst.INDEX_DEPTH_MAP_Z: str,
+            cst.INDEX_DEPTH_MAP_COLOR: str,
+            cst.INDEX_DEPTH_MAP_MASK: Or(str, None),
             # also, config.json has classif named classification because
             # pc_inputs requires it :)
-            cst.POINTS_CLOUD_CLASSIF_KEY_ROOT: str,  # require classif
-            cst.POINTS_CLOUD_MSK: Or(str, None),
-            cst.POINTS_CLOUD_CONFIDENCE_KEY_ROOT: Or(dict, None),
-            cst.POINTS_CLOUD_CLR_KEY_ROOT: str,
-            cst.POINTS_CLOUD_FILLING_KEY_ROOT: Or(str, None),
-            cst.PC_EPSG: Or(str, int, None),
+            cst.INDEX_DEPTH_MAP_CLASSIFICATION: str,  # require classif
+            cst.INDEX_DEPTH_MAP_PERFORMANCE_MAP: Or(str, None),
+            cst.INDEX_DEPTH_MAP_FILLING: Or(str, None),
+            cst.INDEX_DEPTH_MAP_EPSG: Or(str, int, None),
         }
-        checker_pc = Checker(pc_schema)
+        checker_dm = Checker(dm_schema)
 
-        for point_cloud_key in overloaded_conf[pc_cst.POINT_CLOUDS]:
-            checker_pc.validate(
-                overloaded_conf[pc_cst.POINT_CLOUDS][point_cloud_key]
+        for depth_map_key in overloaded_conf[dm_cst.DEPTH_MAP]:
+            checker_dm.validate(
+                overloaded_conf[dm_cst.DEPTH_MAP][depth_map_key]
             )
 
         return overloaded_conf
@@ -144,11 +148,21 @@ class PointCloudToMeshPipeline(PipelineTemplate):
         :rtype : dict
         """
 
-        overloaded_conf = conf
+        overloaded_conf = conf.copy()
+        out_dir = conf[out_cst.OUT_DIRECTORY]
+        out_dir = os.path.abspath(out_dir)
+        # Ensure that output directory and its subdirectories exist
+        safe_makedirs(out_dir)
 
-        overloaded_conf["out_dir"] = conf.get("out_dir", None)
-        overloaded_conf["out_epsg"] = conf.get("out_epsg", 4978)
-        output_schema = {"out_dir": str, "out_epsg": Or(int, str)}
+        # Overload some parameters
+        overloaded_conf[out_cst.OUT_DIRECTORY] = out_dir
+        overloaded_conf[cst.EPSG] = conf.get(cst.EPSG, 4978)
+
+        # Check schema
+        output_schema = {
+            out_cst.OUT_DIRECTORY: str,
+            cst.EPSG: Or(int, str),
+        }
         checker_output = Checker(output_schema)
         checker_output.validate(overloaded_conf)
 
@@ -183,33 +197,36 @@ class PointCloudToMeshPipeline(PipelineTemplate):
 
         return conf
 
-    def run(self):
+    def run(self, log_dir=None):
         """
         Run pipeline
         """
+        if log_dir is None:
+            log_dir = os.path.join(self.out_dir, "logs")
 
         # start cars orchestrator
         with orchestrator.Orchestrator(
-            orchestrator_conf=self.orchestrator_conf,
+            orchestrator_conf=self.used_conf[ORCHESTRATOR],
+            out_dir=self.out_dir,
         ) as cars_orchestrator:
 
             # generate tiling for the point cloud
-            list_point_clouds = pc_tif_tools.generate_point_clouds(
-                self.inputs["point_clouds"], cars_orchestrator, tile_size=1000
+            list_depth_map = pc_tif_tools.generate_point_clouds(
+                self.inputs[dm_cst.DEPTH_MAP], cars_orchestrator, tile_size=1000
             )
 
             # generate tiling for the point cloud
             # to be used in the dtm generation
-            list_point_clouds_dtm_gen = pc_tif_tools.generate_point_clouds(
-                self.inputs["point_clouds"],
+            list_depth_map_dtm_gen = pc_tif_tools.generate_point_clouds(
+                self.inputs[dm_cst.DEPTH_MAP],
                 cars_orchestrator,
                 tile_size=self.dtm_creation.used_config["dtm_precision"],
             )
 
             dtm_mesh = self.dtm_creation.run(
-                list_point_clouds_dtm_gen,
-                self.output["out_dir"],
-                out_epsg=self.output["out_epsg"],
+                list_depth_map_dtm_gen,
+                self.out_dir,
+                out_epsg=self.used_conf[OUTPUT][cst.EPSG],
                 classification_buildings_description=self.inputs[
                     "classification_buildings_description"
                 ],
@@ -220,7 +237,7 @@ class PointCloudToMeshPipeline(PipelineTemplate):
             # Create point cloud groups in the form of polygons
             grouping_polygons = self.pcd_to_grouping_polys.run(
                 # point clouds paths
-                list_point_clouds,
+                list_depth_map,
                 classification_buildings_description=self.inputs[
                     "classification_buildings_description"
                 ],
@@ -237,12 +254,12 @@ class PointCloudToMeshPipeline(PipelineTemplate):
             # Create meshes from the groups of polygons
             self.grouping_polys_to_mesh.run(
                 # polygons and files associated
-                list_point_clouds,
+                list_depth_map,
                 tiles,
                 groups,
                 dtm_mesh,
-                self.output["out_dir"],
-                out_epsg=self.output["out_epsg"],
+                self.out_dir,
+                out_epsg=self.used_conf[OUTPUT][cst.EPSG],
                 classification_buildings_description=self.inputs[
                     "classification_buildings_description"
                 ],
