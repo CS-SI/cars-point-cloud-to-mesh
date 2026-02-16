@@ -123,7 +123,7 @@ def localize_masked_areas(
     """
     # binarize msk layer of epipolar image dataset
     # 0: 'valid' data, 1: masked data according to key_id
-    if cst.EPI_CLASSIFICATION not in dataset:
+    if cst.INDEX_DEPTH_MAP_CLASSIFICATION not in dataset:
         logging.debug("No classif provided")
         bbox = []
     else:
@@ -160,7 +160,7 @@ def classif_to_stacked_array(disp_map, class_index):
     )[0].tolist()
     # get index for each band classification of the non zero values
     stack_index = np.any(
-        disp_map[cst.EPI_CLASSIFICATION].values[index_class, :, :] > 0,
+        disp_map[cst.INDEX_DEPTH_MAP_CLASSIFICATION].values[index_class, :, :] > 0,
         axis=0,
     )
 

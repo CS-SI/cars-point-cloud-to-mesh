@@ -31,6 +31,7 @@ import logging
 # Third party imports
 import numpy as np
 import pandas as pd
+import pyproj
 import rasterio as rio
 import xarray as xr
 from shapely import geometry, length
@@ -41,6 +42,9 @@ from cars.core import inputs, preprocessing, projection, tiling
 
 # CARS imports
 from cars.data_structures import cars_dataset, cars_dict
+
+POINTS_CLOUD_GLOBAL_ID = "global_id"
+POINTS_CLOUD_CONFIDENCE_KEY_ROOT = "confidence"
 
 
 def create_polygon_from_list_points(list_points):
@@ -82,7 +86,7 @@ def compute_epsg_from_point_cloud(list_epipolar_points_cloud):
     # Get epsg from first point cloud
     pc_keys = list(list_epipolar_points_cloud.keys())
     point_cloud = list_epipolar_points_cloud[pc_keys[0]]
-    tif_size = inputs.rasterio_get_size(point_cloud[cst.X])
+    tif_size = inputs.rasterio_get_size(point_cloud[cst.INDEX_DEPTH_MAP_X])
 
     tile_size = 100
     grid = tiling.generate_tiling_grid(
@@ -112,10 +116,10 @@ def compute_epsg_from_point_cloud(list_epipolar_points_cloud):
                 )
                 # compute min max
                 x_y_min_max = get_min_max_band(
-                    point_cloud[cst.X],
-                    point_cloud[cst.Y],
-                    point_cloud[cst.Z],
-                    point_cloud[cst.PC_EPSG],
+                    point_cloud[cst.INDEX_DEPTH_MAP_X],
+                    point_cloud[cst.INDEX_DEPTH_MAP_Y],
+                    point_cloud[cst.INDEX_DEPTH_MAP_Z],
+                    point_cloud[cst.INDEX_DEPTH_MAP_EPSG],
                     4326,
                     window=window,
                 )
@@ -148,6 +152,48 @@ def intersect_polygons(poly1, poly2):
     """
 
     return poly1.intersects(poly2)
+
+
+def points_cloud_conversion(
+    cloud_in: np.ndarray, epsg_in: int, epsg_out: int
+) -> np.ndarray:
+    """
+    Convert a point cloud from a SRS to another one.
+
+    :param cloud_in: cloud to project
+    :param epsg_in: EPSG code of the input SRS
+    :param epsg_out: EPSG code of the output SRS
+    :return: Projected point cloud
+    """
+    # Get CRS from input EPSG codes
+    crs_in = pyproj.CRS.from_epsg(epsg_in)
+    crs_out = pyproj.CRS.from_epsg(epsg_out)
+
+    # Project point cloud between CRS (keep always_xy for compatibility)
+    cloud_in = np.array(cloud_in).T
+    transformer = pyproj.Transformer.from_crs(crs_in, crs_out, always_xy=True)
+    cloud_in = transformer.transform(*cloud_in)
+    cloud_in = np.array(cloud_in).T
+
+    return cloud_in
+
+def points_cloud_conversion_dataframe(
+    cloud: pd.DataFrame, epsg_in: int, epsg_out: int
+):
+    """
+    Convert a point cloud as a panda.DataFrame to another epsg (inplace)
+
+    :param cloud: cloud to project
+    :param epsg_in: EPSG code of the input SRS
+    :param epsg_out: EPSG code of the output SRS
+    """
+    xyz_in = cloud.loc[:, [cst.INDEX_DEPTH_MAP_X, cst.INDEX_DEPTH_MAP_Y, cst.INDEX_DEPTH_MAP_Z]].values
+
+    if xyz_in.shape[0] != 0:
+        xyz_in = points_cloud_conversion(xyz_in, epsg_in, epsg_out)
+        cloud[cst.INDEX_DEPTH_MAP_X] = xyz_in[:, 0]
+        cloud[cst.INDEX_DEPTH_MAP_Y] = xyz_in[:, 1]
+        cloud[cst.INDEX_DEPTH_MAP_Z] = xyz_in[:, 2]
 
 
 def get_min_max_band(
@@ -190,22 +236,22 @@ def get_min_max_band(
                     band_y = image_y.read(1, window=window)
                     band_z = image_z.read(1, window=window)
 
-                cloud_data[cst.X] = np.ravel(band_x)
-                cloud_data[cst.Y] = np.ravel(band_y)
-                cloud_data[cst.Z] = np.ravel(band_z)
+                cloud_data[cst.INDEX_DEPTH_MAP_X] = np.ravel(band_x)
+                cloud_data[cst.INDEX_DEPTH_MAP_Y] = np.ravel(band_y)
+                cloud_data[cst.INDEX_DEPTH_MAP_Z] = np.ravel(band_z)
 
-    pd_cloud = pd.DataFrame(cloud_data, columns=[cst.X, cst.Y, cst.Z])
+    pd_cloud = pd.DataFrame(cloud_data, columns=[cst.INDEX_DEPTH_MAP_X, cst.INDEX_DEPTH_MAP_Y, cst.INDEX_DEPTH_MAP_Z])
 
     pd_cloud = pd_cloud.drop(
         pd_cloud.index[
-            (pd_cloud[cst.X] == 0.0)  # pylint: disable=E1136
-            | (pd_cloud[cst.Y] == 0.0)  # pylint: disable=E1136
+            (pd_cloud[cst.INDEX_DEPTH_MAP_X] == 0.0)  # pylint: disable=E1136
+            | (pd_cloud[cst.INDEX_DEPTH_MAP_Y] == 0.0)  # pylint: disable=E1136
         ]
     )
     pd_cloud = pd_cloud.drop(
         pd_cloud.index[
-            (np.isnan(pd_cloud[cst.X]))  # pylint: disable=E1136
-            | (np.isnan(pd_cloud[cst.Y]))  # pylint: disable=E1136
+            (np.isnan(pd_cloud[cst.INDEX_DEPTH_MAP_X]))  # pylint: disable=E1136
+            | (np.isnan(pd_cloud[cst.INDEX_DEPTH_MAP_Y]))  # pylint: disable=E1136
         ]
     )
 
@@ -215,14 +261,14 @@ def get_min_max_band(
     ymin = np.nan
     ymax = np.nan
     if not np.isnan(lon_med) and not np.isnan(lat_med):
-        projection.points_cloud_conversion_dataframe(
+        points_cloud_conversion_dataframe(
             pd_cloud, epsg_in, epsg_utm
         )
 
-        xmin = pd_cloud[cst.X].min()
-        xmax = pd_cloud[cst.X].max()
-        ymin = pd_cloud[cst.Y].min()
-        ymax = pd_cloud[cst.Y].max()
+        xmin = pd_cloud[cst.INDEX_DEPTH_MAP_X].min()
+        xmax = pd_cloud[cst.INDEX_DEPTH_MAP_X].max()
+        ymin = pd_cloud[cst.INDEX_DEPTH_MAP_Y].min()
+        ymax = pd_cloud[cst.INDEX_DEPTH_MAP_Y].max()
 
     return [xmin, xmax, ymin, ymax]
 
@@ -252,7 +298,7 @@ def convert_to_polygon(x_y_min_max):
     return create_polygon_from_list_points(points)
 
 
-def filter_cloud(pd_cloud, bounds):
+def filter_cloud(pd_cloud: pd.DataFrame, bounds):
     """
     Remove from the merged cloud all points that are out of the
     terrain tile boundaries.
@@ -265,10 +311,10 @@ def filter_cloud(pd_cloud, bounds):
     :return: the epsg out
     :rtype: int
     """
-    cond_x_min = pd_cloud[cst.X] < bounds[0]
-    cond_x_max = pd_cloud[cst.X] > bounds[1]
-    cond_y_min = pd_cloud[cst.Y] < bounds[2]
-    cond_y_max = pd_cloud[cst.Y] > bounds[3]
+    cond_x_min = pd_cloud[cst.INDEX_DEPTH_MAP_X] < bounds[0]
+    cond_x_max = pd_cloud[cst.INDEX_DEPTH_MAP_X] > bounds[1]
+    cond_y_min = pd_cloud[cst.INDEX_DEPTH_MAP_Y] < bounds[2]
+    cond_y_max = pd_cloud[cst.INDEX_DEPTH_MAP_Y] > bounds[3]
     pd_cloud = pd_cloud.drop(
         pd_cloud.index[cond_x_min | cond_x_max | cond_y_min | cond_y_max]
     )
@@ -322,7 +368,7 @@ def create_combined_cloud_from_tif(
             band_path = cloud["data"][band_name]
 
             if band_path is not None:
-                if cst.POINTS_CLOUD_CLR_KEY_ROOT in band_name:
+                if cst.INDEX_DEPTH_MAP_COLOR in band_name:
                     # Get color type
                     color_types.append(
                         inputs.rasterio_get_image_type(band_path)
@@ -351,10 +397,10 @@ def create_combined_cloud_from_tif(
                     )
 
         # add source file id
-        cloud_data[cst.POINTS_CLOUD_GLOBAL_ID] = (
-            np.ones(cloud_data[cst.X].shape) * cloud_file_id
+        cloud_data[POINTS_CLOUD_GLOBAL_ID] = (
+            np.ones(cloud_data[cst.INDEX_DEPTH_MAP_X].shape) * cloud_file_id
         )
-        cloud_data_bands.append(cst.POINTS_CLOUD_GLOBAL_ID)
+        cloud_data_bands.append(POINTS_CLOUD_GLOBAL_ID)
         cloud_data_types.append("uint16")
 
         # Create cloud pandas
@@ -363,15 +409,15 @@ def create_combined_cloud_from_tif(
         # Post processing if 0 in data
         cloud_pd = cloud_pd.drop(
             cloud_pd.index[
-                (cloud_pd[cst.X] == 0.0)  # pylint: disable=E1136
-                | (cloud_pd[cst.Y] == 0.0)  # pylint: disable=E1136
+                (cloud_pd[cst.INDEX_DEPTH_MAP_X] == 0.0)  # pylint: disable=E1136
+                | (cloud_pd[cst.INDEX_DEPTH_MAP_Y] == 0.0)  # pylint: disable=E1136
             ]
         )
 
         cloud_pd = cloud_pd.drop(
             cloud_pd.index[
-                (np.isnan(cloud_pd[cst.X]))  # pylint: disable=E1136
-                | (np.isnan(cloud_pd[cst.Y]))  # pylint: disable=E1136
+                (np.isnan(cloud_pd[cst.INDEX_DEPTH_MAP_X]))  # pylint: disable=E1136
+                | (np.isnan(cloud_pd[cst.INDEX_DEPTH_MAP_Y]))  # pylint: disable=E1136
             ]
         )
 
@@ -383,7 +429,7 @@ def create_combined_cloud_from_tif(
 
         # Convert pc if necessary
         if cloud_epsg != epsg:
-            projection.points_cloud_conversion_dataframe(
+            points_cloud_conversion_dataframe(
                 cloud_pd, cloud_epsg, epsg
             )
 
@@ -436,11 +482,11 @@ def read_band(
     """
     # Determine type
     band_type = inputs.rasterio_get_image_type(band_path)
-    if cst.POINTS_CLOUD_MSK in band_name:
+    if cst.INDEX_DEPTH_MAP_MASK in band_name:
         band_type = "uint8"
     if (
-        cst.POINTS_CLOUD_CLASSIF_KEY_ROOT in band_name
-        or cst.POINTS_CLOUD_FILLING_KEY_ROOT in band_name
+        cst.INDEX_DEPTH_MAP_CLASSIFICATION in band_name
+        or cst.INDEX_DEPTH_MAP_FILLING in band_name
     ):
         band_type = "boolean"
     with rio.open(band_path) as band_file:
@@ -496,10 +542,10 @@ def generate_point_clouds(list_clouds, orchestrator, tile_size=1000):
         )
 
         color_type = None
-        if cst.POINTS_CLOUD_CLR_KEY_ROOT in cloud:
+        if cst.INDEX_DEPTH_MAP_COLOR in cloud:
             # Get color type
             color_type = inputs.rasterio_get_image_type(
-                cloud[cst.POINTS_CLOUD_CLR_KEY_ROOT]
+                cloud[cst.INDEX_DEPTH_MAP_COLOR]
             )
         cars_ds.attributes = {
             "color_type": color_type,
@@ -565,9 +611,9 @@ def generate_pc_wrapper(
 
     list_keys = cloud.keys()
     # x y z
-    data_x = read_image_full(cloud["x"], window=window, squeeze=True)
-    data_y = read_image_full(cloud["y"], window=window, squeeze=True)
-    data_z = read_image_full(cloud["z"], window=window, squeeze=True)
+    data_x = read_image_full(cloud[cst.INDEX_DEPTH_MAP_X], window=window, squeeze=True)
+    data_y = read_image_full(cloud[cst.INDEX_DEPTH_MAP_Y], window=window, squeeze=True)
+    data_z = read_image_full(cloud[cst.INDEX_DEPTH_MAP_Z], window=window, squeeze=True)
 
     shape = data_x.shape
 
@@ -575,9 +621,9 @@ def generate_pc_wrapper(
     col = np.arange(0, shape[1])
 
     values = {
-        cst.X: ([cst.ROW, cst.COL], data_x),  # longitudes
-        cst.Y: ([cst.ROW, cst.COL], data_y),  # latitudes
-        cst.Z: ([cst.ROW, cst.COL], data_z),
+        cst.INDEX_DEPTH_MAP_X: ([cst.ROW, cst.COL], data_x),  # longitudes
+        cst.INDEX_DEPTH_MAP_Y: ([cst.ROW, cst.COL], data_y),  # latitudes
+        cst.INDEX_DEPTH_MAP_Z: ([cst.ROW, cst.COL], data_z),
     }
 
     coords = {cst.ROW: row, cst.COL: col}
@@ -589,38 +635,38 @@ def generate_pc_wrapper(
             pass
         elif key in ["x", "y", "z"]:
             pass
-        elif key == "point_cloud_epsg":
+        elif key == cst.INDEX_DEPTH_MAP_EPSG:
             attributes["epsg"] = cloud[key]
         elif key == "mask":
             if cloud[key] is None:
                 data = ~np.isnan(data_x) * 255
             else:
                 data = read_image_full(cloud[key], window=window, squeeze=True)
-            values[cst.POINTS_CLOUD_CORR_MSK] = ([cst.ROW, cst.COL], data)
+            values[cst.POINT_CLOUD_CORR_MSK] = ([cst.ROW, cst.COL], data)
 
-        elif key == cst.EPI_CLASSIFICATION:
+        elif key == cst.INDEX_DEPTH_MAP_CLASSIFICATION:
             data = read_image_full(cloud[key], window=window, squeeze=False)
             descriptions = list(inputs.get_descriptions_bands(cloud[key]))
-            values[cst.EPI_CLASSIFICATION] = (
+            values[cst.INDEX_DEPTH_MAP_CLASSIFICATION] = (
                 [cst.BAND_CLASSIF, cst.ROW, cst.COL],
                 data,
             )
             if cst.BAND_CLASSIF not in coords:
                 coords[cst.BAND_CLASSIF] = descriptions
 
-        elif key == cst.EPI_COLOR:
+        elif key == cst.INDEX_DEPTH_MAP_COLOR:
             data = read_image_full(cloud[key], window=window, squeeze=False)
             descriptions = list(inputs.get_descriptions_bands(cloud[key]))
             attributes["color_type"] = color_type
-            values[cst.EPI_COLOR] = ([cst.BAND_IM, cst.ROW, cst.COL], data)
+            values[cst.INDEX_DEPTH_MAP_COLOR] = ([cst.BAND_IM, cst.ROW, cst.COL], data)
 
-            if cst.EPI_COLOR not in coords:
+            if cst.INDEX_DEPTH_MAP_COLOR not in coords:
                 coords[cst.BAND_IM] = descriptions
 
-        elif key == cst.EPI_FILLING:
+        elif key == cst.INDEX_DEPTH_MAP_FILLING:
             data = read_image_full(cloud[key], window=window, squeeze=False)
             descriptions = inputs.get_descriptions_bands(cloud[key])
-            values[cst.EPI_FILLING] = (
+            values[cst.INDEX_DEPTH_MAP_FILLING] = (
                 [cst.BAND_FILLING, cst.ROW, cst.COL],
                 data,
             )
@@ -662,10 +708,10 @@ def get_bounds(
     for _, point_cloud in list_epipolar_points_cloud.items():
 
         local_x_y_min_max = get_min_max_band(
-            point_cloud[cst.X],
-            point_cloud[cst.Y],
-            point_cloud[cst.Z],
-            point_cloud[cst.PC_EPSG],
+            point_cloud[cst.INDEX_DEPTH_MAP_X],
+            point_cloud[cst.INDEX_DEPTH_MAP_Y],
+            point_cloud[cst.INDEX_DEPTH_MAP_Z],
+            point_cloud[cst.INDEX_DEPTH_MAP_EPSG],
             epsg,
         )
 
@@ -743,7 +789,7 @@ def transform_input_pc(
     for pair_key, items in list_epipolar_points_cloud.items():
         # Generate CarsDataset
         epi_pc = cars_dataset.CarsDataset("dict")
-        tif_size = inputs.rasterio_get_size(items[cst.X])
+        tif_size = inputs.rasterio_get_size(items[cst.INDEX_DEPTH_MAP_X])
         epi_pc.tiling_grid = tiling.generate_tiling_grid(
             0,
             0,
@@ -961,33 +1007,33 @@ def compute_x_y_min_max_wrapper(items, epsg, window, saving_info=None):
 
     """
     x_y_min_max = get_min_max_band(
-        items[cst.X],
-        items[cst.Y],
-        items[cst.Z],
-        items[cst.PC_EPSG],
+        items[cst.INDEX_DEPTH_MAP_X],
+        items[cst.INDEX_DEPTH_MAP_Y],
+        items[cst.INDEX_DEPTH_MAP_Z],
+        items[cst.INDEX_DEPTH_MAP_EPSG],
         epsg,
         window=window,
     )
 
     data_dict = {
-        cst.X: items[cst.X],
-        cst.Y: items[cst.Y],
-        cst.Z: items[cst.Z],
-        cst.POINTS_CLOUD_CLR_KEY_ROOT: items[cst.POINTS_CLOUD_CLR_KEY_ROOT],
+        cst.INDEX_DEPTH_MAP_X: items[cst.INDEX_DEPTH_MAP_X],
+        cst.INDEX_DEPTH_MAP_Y: items[cst.INDEX_DEPTH_MAP_Y],
+        cst.INDEX_DEPTH_MAP_Z: items[cst.INDEX_DEPTH_MAP_Z],
+        cst.INDEX_DEPTH_MAP_COLOR: items[cst.INDEX_DEPTH_MAP_COLOR],
     }
-    if cst.POINTS_CLOUD_MSK in items:
-        data_dict[cst.POINTS_CLOUD_MSK] = items[cst.POINTS_CLOUD_MSK]
-    if cst.POINTS_CLOUD_CLASSIF_KEY_ROOT in items:
-        data_dict[cst.POINTS_CLOUD_CLASSIF_KEY_ROOT] = items[
-            cst.POINTS_CLOUD_CLASSIF_KEY_ROOT
+    if cst.INDEX_DEPTH_MAP_MASK in items:
+        data_dict[cst.INDEX_DEPTH_MAP_MASK] = items[cst.INDEX_DEPTH_MAP_MASK]
+    if cst.INDEX_DEPTH_MAP_CLASSIFICATION in items:
+        data_dict[cst.INDEX_DEPTH_MAP_CLASSIFICATION] = items[
+            cst.INDEX_DEPTH_MAP_CLASSIFICATION
         ]
-    if cst.POINTS_CLOUD_FILLING_KEY_ROOT in items:
-        data_dict[cst.POINTS_CLOUD_FILLING_KEY_ROOT] = items[
-            cst.POINTS_CLOUD_FILLING_KEY_ROOT
+    if cst.INDEX_DEPTH_MAP_FILLING in items:
+        data_dict[cst.INDEX_DEPTH_MAP_FILLING] = items[
+            cst.INDEX_DEPTH_MAP_FILLING
         ]
-    if cst.POINTS_CLOUD_CONFIDENCE_KEY_ROOT in items:
-        data_dict[cst.POINTS_CLOUD_CONFIDENCE_KEY_ROOT] = items[
-            cst.POINTS_CLOUD_CONFIDENCE_KEY_ROOT
+    if POINTS_CLOUD_CONFIDENCE_KEY_ROOT in items:
+        data_dict[POINTS_CLOUD_CONFIDENCE_KEY_ROOT] = items[
+            POINTS_CLOUD_CONFIDENCE_KEY_ROOT
         ]
 
     # create dict
@@ -995,7 +1041,7 @@ def compute_x_y_min_max_wrapper(items, epsg, window, saving_info=None):
         "data": data_dict,
         "x_y_min_max": x_y_min_max,
         "window": window,
-        "cloud_epsg": items[cst.PC_EPSG],
+        "cloud_epsg": items[cst.INDEX_DEPTH_MAP_EPSG],
     }
 
     # add saving infos
