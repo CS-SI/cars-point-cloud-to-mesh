@@ -30,10 +30,25 @@ import os
 
 import numpy as np
 import rasterio as rio
+from cars.core import constants as cst
 from cars_point_cloud_to_mesh.applications.holes_detection.holes_detection_tools import (
     classif_to_stacked_array,
 )
 from rasterio.plot import reshape_as_raster
+import re
+from typing import Optional, Tuple
+import pyproj
+
+# WKT2: ID["EPSG",32631]
+_EPSG_ID_WKT2_RE = re.compile(r'ID\["EPSG",\s*(\d+)\s*\]')
+# WKT1: AUTHORITY["EPSG","32631"]
+_EPSG_AUTH_WKT1_RE = re.compile(r'AUTHORITY\["EPSG",\s*"(\d+)"\s*\]')
+
+# Rough blocks (WKT2 vs WKT1)
+_PROJCRS_BLOCK_WKT2_RE = re.compile(r'PROJCRS\[(?:[^\[\]]+|\[[^\[\]]*\])*\]')
+_PROJCS_BLOCK_WKT1_RE  = re.compile(r'PROJCS\[(?:[^\[\]]+|\[[^\[\]]*\])*\]')
+_GEOGCRS_BLOCK_WKT2_RE = re.compile(r'GEOGCRS\[(?:[^\[\]]+|\[[^\[\]]*\])*\]')
+_GEOGCS_BLOCK_WKT1_RE  = re.compile(r'GEOGCS\[(?:[^\[\]]+|\[[^\[\]]*\])*\]')
 
 
 def compute_ndvi(color):
@@ -108,10 +123,10 @@ def get_unclassified_selector(point_cloud, building_index=None):
     ndwi = np.zeros(mask_selector.shape)
 
     ndvi[mask_selector] = compute_ndvi(
-        point_cloud["color"].values[:, mask_selector]
+        point_cloud[cst.INDEX_DEPTH_MAP_COLOR].values[:, mask_selector]
     )
     ndwi[mask_selector] = compute_ndwi(
-        point_cloud["color"].values[:, mask_selector]
+        point_cloud[cst.INDEX_DEPTH_MAP_COLOR].values[:, mask_selector]
     )
 
     classif = classif_to_stacked_array(point_cloud, building_index)
@@ -279,38 +294,106 @@ def tif_to_png(in_file, out_file, scale_factor=1):
         ) as out_data:
             out_data.write(reshape_as_raster(rgb))
 
+def extract_epsg_from_crs_wkt(wkt: str) -> Optional[int]:
+    if not wkt:
+        return None
 
-def get_relevant_info(file):
+    # WKT2 projected CRS
+    idx = wkt.find("PROJCRS[")
+    if idx != -1:
+        sub = wkt[idx:]
+        cut = sub.find(",VERTCRS[")
+        if cut == -1:
+            cut = sub.find(",VERT_CS[")
+        if cut != -1:
+            sub = sub[:cut]
+        m = _EPSG_ID_WKT2_RE.search(sub)
+        if m:
+            return int(m.group(1))
+
+    # WKT1 projected CRS
+    idx = wkt.find("PROJCS[")
+    if idx != -1:
+        sub = wkt[idx:]
+        cut = sub.find(",VERT_CS[")
+        if cut == -1:
+            cut = sub.find(",VERTCRS[")
+        if cut != -1:
+            sub = sub[:cut]
+        matches = _EPSG_AUTH_WKT1_RE.findall(sub)
+        if matches:
+            return int(matches[-1])
+
+    # WKT2 geographic CRS
+    idx = wkt.find("GEOGCRS[")
+    if idx != -1:
+        sub = wkt[idx:]
+        cut = sub.find(",VERTCRS[")
+        if cut == -1:
+            cut = sub.find(",VERT_CS[")
+        if cut != -1:
+            sub = sub[:cut]
+        m = _EPSG_ID_WKT2_RE.search(sub)
+        if m:
+            return int(m.group(1))
+
+    # WKT1 geographic CRS
+    idx = wkt.find("GEOGCS[")
+    if idx != -1:
+        sub = wkt[idx:]
+        cut = sub.find(",VERT_CS[")
+        if cut == -1:
+            cut = sub.find(",VERTCRS[")
+        if cut != -1:
+            sub = sub[:cut]
+        matches = _EPSG_AUTH_WKT1_RE.findall(sub)
+        if matches:
+            return int(matches[-1])
+
+    return None
+
+
+def get_relevant_info(file: str) -> Tuple[np.ndarray, int]:
     """
-    Helper function returning the information needed in
-    the run function of the application. In this case,
-    the inverse projection matrix and the file's epsg
+    Return (inverse projection matrix, epsg).
+    epsg is the *horizontal* CRS EPSG when input CRS is compound.
     """
     with rio.open(file) as clr_file:
-
-        if not clr_file.crs.is_epsg_code:
-            message = (
-                f"The CRS of the color file {file} "
-                "is not supported, as it is not linked to an EPSG code."
-                f"CRS found : {clr_file.crs}"
-            )
-            logging.error(message)
-            raise RuntimeError(message)
-
         trans = clr_file.transform
         mat_tr = np.array(
             [
                 [trans[0], trans[1], trans[2]],
                 [trans[3], trans[4], trans[5]],
-                [0, 0, 1],
-            ]
+                [0.0, 0.0, 1.0],
+            ],
+            dtype=np.float64,
         )
         inv_mat_tr = np.linalg.inv(mat_tr)
+        inv_mat_tr[0] /= float(clr_file.width)
+        inv_mat_tr[1] /= float(clr_file.height)
 
-        inv_mat_tr[0] /= clr_file.width
-        inv_mat_tr[1] /= clr_file.height
+        epsg = clr_file.crs.to_epsg() if clr_file.crs else None
+        if epsg is None and clr_file.crs:
+            epsg = extract_epsg_from_crs_wkt(clr_file.crs.to_wkt())
 
-    return inv_mat_tr, clr_file.crs.to_epsg()
+        if epsg is None:
+            message = (
+                f"The CRS of the color file {file} is not supported: "
+                "unable to derive an EPSG code (needed by the pipeline). "
+                f"CRS found: {clr_file.crs}"
+            )
+            logging.error(message)
+            raise RuntimeError(message)
+
+        # Fail fast: ensure EPSG is a real CRS for pyproj (avoid 7030/6326/etc.)
+        try:
+            pyproj.CRS.from_epsg(int(epsg))
+        except Exception as exc:
+            raise RuntimeError(
+                f"Derived EPSG:{epsg} is not a valid CRS for pyproj. CRS found: {clr_file.crs}"
+            ) from exc
+
+    return inv_mat_tr, int(epsg)
 
 
 def update_lrud(lrud, bbpts):

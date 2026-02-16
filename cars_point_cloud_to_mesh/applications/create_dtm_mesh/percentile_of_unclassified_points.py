@@ -34,7 +34,8 @@ import os
 import cars.orchestrator.orchestrator as ocht
 import numpy as np
 import triangle as libtr
-from cars.core import projection, tiling
+from cars.core import tiling
+from cars_point_cloud_to_mesh.applications.point_cloud_fusion.pc_tif_tools import points_cloud_conversion
 
 # CARS imports
 from cars.data_structures import cars_dataset
@@ -370,7 +371,7 @@ class PercentileOfUnclassifiedPoints(
         inv_mat_tr, clr_epsg = pupt.get_relevant_info(dsm_color)
 
         for point_x, point_y, _point_z in dtm_mesh["vertices"]:
-            point = projection.points_cloud_conversion(
+            point = points_cloud_conversion(
                 np.array([point_x, point_y]), crs_vertices, clr_epsg
             )
             # homogenous coords
@@ -383,7 +384,7 @@ class PercentileOfUnclassifiedPoints(
             # uv = np.clip(uv, 0, 1)
             uv_maps.append(uv_map)
 
-        dtm_mesh["vertices"] = projection.points_cloud_conversion(
+        dtm_mesh["vertices"] = points_cloud_conversion(
             np.array(dtm_mesh["vertices"]), crs_vertices, clr_epsg
         )
         dtm_mesh["uvs"] = uv_maps
@@ -408,7 +409,7 @@ class PercentileOfUnclassifiedPoints(
             out_dir,
             "dtm_mesh",
             "color.png",
-            projection.points_cloud_conversion(
+            points_cloud_conversion(
                 np.array(dtm_mesh["vertices"]),
                 clr_epsg,
                 out_epsg,
