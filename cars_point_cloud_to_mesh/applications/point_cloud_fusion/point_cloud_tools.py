@@ -2,6 +2,7 @@
 # coding: utf8
 #
 # Copyright (c) 2020 Centre National d'Etudes Spatiales (CNES).
+# Copyright (C) 2023 CS Group.
 #
 # This file is part of CARS
 # (see https://github.com/CNES/cars).
@@ -40,7 +41,7 @@ from cars.core import projection
 
 
 def create_combined_cloud(  # noqa: C901
-    cloud_list: List[xr.Dataset] or List[pandas.DataFrame],
+    cloud_list: Union[List[xr.Dataset], List[pandas.DataFrame]],
     cloud_ids: List[int],
     dsm_epsg: int,
     xmin: float = None,
