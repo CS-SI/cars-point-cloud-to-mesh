@@ -56,3 +56,22 @@ Website: https://rufat.be/triangle/
 Licence: LGPL 3.0
 
 
+------------------
+Code reuse from CARS 0.8.0
+------------------
+
+The following application modules were originally part of CARS 0.8.0
+(CNES, Apache License 2.0) and have been reintegrated into this plugin
+to preserve compatibility and functionality after their removal from
+CARS 1.0.0:
+
+- cars_point_cloud_to_mesh/applications/holes_detection
+- cars_point_cloud_to_mesh/applications/point_cloud_fusion
+
+These directories contain code derived from the CARS project:
+Copyright 2020-2024, Centre National d'Etudes Spatiales (CNES)
+License: Apache License, Version 2.0
+Website: https://github.com/CNES/cars
+
+The original license terms (Apache License 2.0) apply to the reused
+source files.
