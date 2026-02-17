@@ -36,7 +36,16 @@ from cars.core.utils import make_relative_path_absolute
 
 def check_depth_map_inputs(conf, config_dir=None):
     """
-    TODO: add docstring
+    Check the inputs given
+
+    :param conf: configuration of inputs
+    :type conf: dict
+    :param config_dir: directory of used json, if user filled paths with
+        relative paths
+    :type config_dir: str
+
+    :return: overloader inputs
+    :rtype: dict
     """
 
     overloaded_conf = {}
@@ -160,7 +169,28 @@ def check_input_size(
     x_path, y_path, z_path, color, mask, classif, performance_map, ambiguity, filling
 ):
     """
-    TODO
+    Check x, y, z, color, mask, classif, performance_map, ambiguity and filling given
+
+    Images must have same size
+
+    :param x_path: x path
+    :type x_path: str
+    :param y_path: y path
+    :type y_path: str
+    :param z_path: z path
+    :type z_path: str
+    :param color: color path
+    :type color: str
+    :param mask: mask path
+    :type mask: str
+    :param classif: classif path
+    :type classif: str
+    :param performance_map: performance_map path
+    :type performance_map: str
+    :param ambiguity: ambiguity path
+    :type ambiguity: str
+    :param filling: filling path
+    :type filling: str
     """
 
     for path in [x_path, y_path, z_path]:
@@ -179,7 +209,12 @@ def check_input_size(
     
 def modify_to_absolute_path(config_dir, overloaded_conf):
     """
-    TODO
+    Modify input file path to absolute path
+
+    :param config_dir: directory of the json configuration
+    :type config_dir: str
+    :param overloaded_conf: overloaded configuration json
+    :type overloaded_conf: dict
     """
     
     for depth_map_key in overloaded_conf[dm_cst.DEPTH_MAP]:
