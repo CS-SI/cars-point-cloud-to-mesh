@@ -28,7 +28,8 @@ import os
 import cars.orchestrator.orchestrator as ocht
 import numpy as np
 from cars.core import tiling
-from cars_point_cloud_to_mesh.applications.point_cloud_fusion.pc_tif_tools import points_cloud_conversion 
+from cars_point_cloud_to_mesh.core import projection
+ 
 from cars.data_structures import cars_dataset
 from json_checker import And, Checker, Or
 
@@ -145,7 +146,7 @@ def mesh_point_cloud(
             )
         )
 
-        triangulation["vertices"] = points_cloud_conversion(
+        triangulation["vertices"] = projection.points_cloud_conversion(
             triangulation["vertices"], 32631, dtm_mesh["crs"]
         )
 
@@ -197,7 +198,7 @@ def mesh_point_cloud(
 
             uv_maps.append(uv_map)
 
-        triangulation["vertices"] = points_cloud_conversion(
+        triangulation["vertices"] = projection.points_cloud_conversion(
             triangulation["vertices"], dtm_mesh["crs"], out_epsg
         )
 

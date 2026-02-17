@@ -37,6 +37,7 @@ import rasterio as rio
 import xarray as xr
 from shapely import geometry, length
 
+from cars_point_cloud_to_mesh.core import projection as projection_plugin
 import cars.orchestrator.orchestrator as ocht
 from cars.core import constants as cst
 from cars.core import inputs, preprocessing, projection, tiling
@@ -155,48 +156,6 @@ def intersect_polygons(poly1, poly2):
     return poly1.intersects(poly2)
 
 
-def points_cloud_conversion(
-    cloud_in: np.ndarray, epsg_in: int, epsg_out: int
-) -> np.ndarray:
-    """
-    Convert a point cloud from a SRS to another one.
-
-    :param cloud_in: cloud to project
-    :param epsg_in: EPSG code of the input SRS
-    :param epsg_out: EPSG code of the output SRS
-    :return: Projected point cloud
-    """
-    # Get CRS from input EPSG codes
-    crs_in = pyproj.CRS.from_epsg(epsg_in)
-    crs_out = pyproj.CRS.from_epsg(epsg_out)
-
-    # Project point cloud between CRS (keep always_xy for compatibility)
-    cloud_in = np.array(cloud_in).T
-    transformer = pyproj.Transformer.from_crs(crs_in, crs_out, always_xy=True)
-    cloud_in = transformer.transform(*cloud_in)
-    cloud_in = np.array(cloud_in).T
-
-    return cloud_in
-
-def points_cloud_conversion_dataframe(
-    cloud: pd.DataFrame, epsg_in: int, epsg_out: int
-):
-    """
-    Convert a point cloud as a panda.DataFrame to another epsg (inplace)
-
-    :param cloud: cloud to project
-    :param epsg_in: EPSG code of the input SRS
-    :param epsg_out: EPSG code of the output SRS
-    """
-    xyz_in = cloud.loc[:, [cst.INDEX_DEPTH_MAP_X, cst.INDEX_DEPTH_MAP_Y, cst.INDEX_DEPTH_MAP_Z]].values
-
-    if xyz_in.shape[0] != 0:
-        xyz_in = points_cloud_conversion(xyz_in, epsg_in, epsg_out)
-        cloud[cst.INDEX_DEPTH_MAP_X] = xyz_in[:, 0]
-        cloud[cst.INDEX_DEPTH_MAP_Y] = xyz_in[:, 1]
-        cloud[cst.INDEX_DEPTH_MAP_Z] = xyz_in[:, 2]
-
-
 def get_min_max_band(
     image_path_x, image_path_y, image_path_z, epsg_in, epsg_utm, window=None
 ):
@@ -262,7 +221,7 @@ def get_min_max_band(
     ymin = np.nan
     ymax = np.nan
     if not np.isnan(lon_med) and not np.isnan(lat_med):
-        points_cloud_conversion_dataframe(
+        projection_plugin.points_cloud_conversion_dataframe(
             pd_cloud, epsg_in, epsg_utm
         )
 
@@ -430,7 +389,7 @@ def create_combined_cloud_from_tif(
 
         # Convert pc if necessary
         if cloud_epsg != epsg:
-            points_cloud_conversion_dataframe(
+            projection_plugin.points_cloud_conversion_dataframe(
                 cloud_pd, cloud_epsg, epsg
             )
 

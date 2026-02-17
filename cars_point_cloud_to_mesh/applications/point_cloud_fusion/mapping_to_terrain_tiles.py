@@ -45,7 +45,7 @@ from cars_point_cloud_to_mesh.applications.point_cloud_fusion.point_cloud_fusion
     PointCloudFusion,
 )
 from cars.core import inputs, tiling
-from cars_point_cloud_to_mesh.applications.point_cloud_fusion.pc_tif_tools import points_cloud_conversion_dataframe
+from cars_point_cloud_to_mesh.core import projection
 from cars.core.utils import safe_makedirs
 from cars.data_structures import cars_dataset
 
@@ -584,7 +584,7 @@ def compute_point_cloud_wrapper(
 
     # Conversion to UTM
     if cloud_epsg != epsg:
-        points_cloud_conversion_dataframe(
+        projection.points_cloud_conversion_dataframe(
             pc_pandas, cloud_epsg, epsg
         )
         cloud_epsg = epsg
