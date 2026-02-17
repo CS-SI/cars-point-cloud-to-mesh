@@ -32,21 +32,18 @@ import logging
 # Third party imports
 import numpy as np
 import pandas as pd
-import pyproj
 import rasterio as rio
 import xarray as xr
 from shapely import geometry, length
 
 from cars_point_cloud_to_mesh.core import projection as projection_plugin
+from cars_point_cloud_to_mesh.core import constants as cst_plugin
 import cars.orchestrator.orchestrator as ocht
 from cars.core import constants as cst
 from cars.core import inputs, preprocessing, projection, tiling
 
 # CARS imports
 from cars.data_structures import cars_dataset, cars_dict
-
-POINTS_CLOUD_GLOBAL_ID = "global_id"
-POINTS_CLOUD_CONFIDENCE_KEY_ROOT = "confidence"
 
 
 def create_polygon_from_list_points(list_points):
@@ -357,10 +354,10 @@ def create_combined_cloud_from_tif(
                     )
 
         # add source file id
-        cloud_data[POINTS_CLOUD_GLOBAL_ID] = (
+        cloud_data[cst_plugin.POINTS_CLOUD_GLOBAL_ID] = (
             np.ones(cloud_data[cst.INDEX_DEPTH_MAP_X].shape) * cloud_file_id
         )
-        cloud_data_bands.append(POINTS_CLOUD_GLOBAL_ID)
+        cloud_data_bands.append(cst_plugin.POINTS_CLOUD_GLOBAL_ID)
         cloud_data_types.append("uint16")
 
         # Create cloud pandas
@@ -991,9 +988,9 @@ def compute_x_y_min_max_wrapper(items, epsg, window, saving_info=None):
         data_dict[cst.INDEX_DEPTH_MAP_FILLING] = items[
             cst.INDEX_DEPTH_MAP_FILLING
         ]
-    if POINTS_CLOUD_CONFIDENCE_KEY_ROOT in items:
-        data_dict[POINTS_CLOUD_CONFIDENCE_KEY_ROOT] = items[
-            POINTS_CLOUD_CONFIDENCE_KEY_ROOT
+    if cst_plugin.POINTS_CLOUD_CONFIDENCE_KEY_ROOT in items:
+        data_dict[cst_plugin.POINTS_CLOUD_CONFIDENCE_KEY_ROOT] = items[
+            cst_plugin.POINTS_CLOUD_CONFIDENCE_KEY_ROOT
         ]
 
     # create dict

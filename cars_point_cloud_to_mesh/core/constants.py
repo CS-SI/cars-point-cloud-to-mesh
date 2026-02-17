@@ -2,6 +2,7 @@
 # coding: utf8
 #
 # Copyright (c) 2020 Centre National d'Etudes Spatiales (CNES).
+# Copyright (C) 2023 CS Group.
 #
 # This file is part of CARS
 # (see https://github.com/CNES/cars).
@@ -19,5 +20,8 @@
 # limitations under the License.
 #
 """
-CARS core module init file
+CARS Constants module
 """
+
+POINTS_CLOUD_GLOBAL_ID = "global_id"
+POINTS_CLOUD_CONFIDENCE_KEY_ROOT = "confidence"

@@ -67,7 +67,7 @@ CARS 1.0.0:
 
 - cars_point_cloud_to_mesh/applications/holes_detection
 - cars_point_cloud_to_mesh/applications/point_cloud_fusion
-- cars-point-cloud-to-mesh/cars_point_cloud_to_mesh/core/projection.py
+- cars-point-cloud-to-mesh/cars_point_cloud_to_mesh/core
 
 These directories contain code derived from the CARS project:
 Copyright 2020-2024, Centre National d'Etudes Spatiales (CNES)
