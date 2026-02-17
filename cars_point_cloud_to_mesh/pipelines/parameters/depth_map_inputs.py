@@ -66,6 +66,7 @@ def check_depth_map_inputs(conf, config_dir=None):
         cst.INDEX_DEPTH_MAP_MASK: Or(str, None),
         cst.INDEX_DEPTH_MAP_CLASSIFICATION: Or(str, None),
         cst.INDEX_DEPTH_MAP_PERFORMANCE_MAP: Or(str, None),
+        cst.INDEX_DEPTH_MAP_AMBIGUITY: Or(str, None),
         cst.INDEX_DEPTH_MAP_FILLING: Or(str, None),
         cst.INDEX_DEPTH_MAP_EPSG: Or(str, int, None),
     }
@@ -99,8 +100,14 @@ def check_depth_map_inputs(conf, config_dir=None):
             "performance_map", None
         )
         overloaded_conf[dm_cst.DEPTH_MAP][depth_map_key][
+            cst.INDEX_DEPTH_MAP_AMBIGUITY
+        ] = conf[dm_cst.DEPTH_MAP][depth_map_key].get(
+            "ambiguity", None
+            )
+        overloaded_conf[dm_cst.DEPTH_MAP][depth_map_key][
             cst.INDEX_DEPTH_MAP_FILLING
         ] = conf[dm_cst.DEPTH_MAP][depth_map_key].get("filling", None)
+
 
         
         overloaded_conf[dm_cst.DEPTH_MAP][depth_map_key][cst.INDEX_DEPTH_MAP_EPSG] = (
@@ -140,6 +147,9 @@ def check_depth_map_inputs(conf, config_dir=None):
                 cst.INDEX_DEPTH_MAP_PERFORMANCE_MAP
             ],
             overloaded_conf[dm_cst.DEPTH_MAP][depth_map_key][
+                cst.INDEX_DEPTH_MAP_AMBIGUITY
+            ],
+            overloaded_conf[dm_cst.DEPTH_MAP][depth_map_key][
                 cst.INDEX_DEPTH_MAP_FILLING
             ],
         )
@@ -147,7 +157,7 @@ def check_depth_map_inputs(conf, config_dir=None):
     return overloaded_conf
 
 def check_input_size(
-    x_path, y_path, z_path, color, mask, classif, performance_map, filling
+    x_path, y_path, z_path, color, mask, classif, performance_map, ambiguity, filling
 ):
     """
     TODO
@@ -157,7 +167,7 @@ def check_input_size(
         if inputs.rasterio_get_nb_bands(path) != 1:
             raise RuntimeError("{} is not mono-band image".format(path))
 
-    for path in [color, mask, classif, performance_map, filling]:
+    for path in [color, mask, classif, performance_map, ambiguity, filling]:
         if path is not None:
             if inputs.rasterio_get_size(x_path) != inputs.rasterio_get_size(
                 path
@@ -182,6 +192,7 @@ def modify_to_absolute_path(config_dir, overloaded_conf):
             cst.INDEX_DEPTH_MAP_MASK,
             cst.INDEX_DEPTH_MAP_CLASSIFICATION,
             cst.INDEX_DEPTH_MAP_PERFORMANCE_MAP,
+            cst.INDEX_DEPTH_MAP_AMBIGUITY,
             cst.INDEX_DEPTH_MAP_FILLING,
         ]:
             if depth_map[tag] is not None:
