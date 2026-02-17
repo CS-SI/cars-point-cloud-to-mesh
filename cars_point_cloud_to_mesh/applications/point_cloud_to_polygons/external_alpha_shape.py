@@ -33,7 +33,8 @@ import numpy as np
 from cars_point_cloud_to_mesh.applications.holes_detection.holes_detection_tools import (
     classif_to_stacked_array,
 )
-from cars.core import projection, tiling
+from cars_point_cloud_to_mesh.applications.point_cloud_fusion.pc_tif_tools import points_cloud_conversion 
+from cars.core import tiling
 
 # CARS imports
 from cars.data_structures import cars_dataset
@@ -76,7 +77,7 @@ def trace_all_contours_wrapper(
 
         return contours_dict
 
-    pcd = projection.points_cloud_conversion(
+    pcd = points_cloud_conversion(
         pcd, point_cloud.attrs["epsg"], 32631
     )
 

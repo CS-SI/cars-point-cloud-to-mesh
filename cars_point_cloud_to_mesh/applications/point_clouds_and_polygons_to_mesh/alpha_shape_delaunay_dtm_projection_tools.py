@@ -27,7 +27,7 @@ import triangle as trlib
 from cars_point_cloud_to_mesh.applications.holes_detection.holes_detection_tools import (
     classif_to_stacked_array,
 )
-from cars.core import projection
+from cars_point_cloud_to_mesh.applications.point_cloud_fusion.pc_tif_tools import points_cloud_conversion 
 from scipy.signal import find_peaks
 
 # https://github.com/pylint-dev/pylint/issues/3273
@@ -56,7 +56,7 @@ def get_grid(point_clouds, grid_size, building_index):
                 pcd["z"].values.flatten()[classified_selector],
             )
         )
-        t_pts = projection.points_cloud_conversion(
+        t_pts = points_cloud_conversion(
             t_pts, pcd.attrs["epsg"], 32631
         )
         pts.append(t_pts)
