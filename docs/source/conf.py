@@ -38,13 +38,13 @@ copyright = "2023, CS Group"
 author = "CS Group"
 
 # The full version, including alpha/beta/rc tags
-from pkg_resources import get_distribution
+from importlib.metadata import PackageNotFoundError, version as pkg_version
 
 try:
-    version = get_distribution("cars_point_cloud_to_mesh").version
+    version = pkg_version("cars-point-cloud-to-mesh")
     release = version
-except Exception as error:
-    print("WARNING: cannot find cars_point_cloud_to_mesh version")
+except PackageNotFoundError:
+    print("WARNING: cannot find cars-point-cloud-to-mesh version")
     version = "Unknown"
     release = version
 
