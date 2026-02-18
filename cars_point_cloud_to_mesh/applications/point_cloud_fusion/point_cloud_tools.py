@@ -37,6 +37,7 @@ import xarray as xr
 
 # CARS imports
 from cars.core import constants as cst
+from cars_point_cloud_to_mesh.core import constants as cst_plugin
 from cars.core import projection
 
 
@@ -122,7 +123,7 @@ def create_combined_sparse_cloud(  # noqa: C901
             The combined cloud has x, y, z columns
 
         - if mask data present in cloud_list datasets:
-            labels=[cst.X, cst.Y, cst.Z, cst.POINTS_CLOUD_MSK]\
+            labels=[cst.X, cst.Y, cst.Z, cst.POINT_CLOUD_MSK]\
             The mask values are added to the dataframe.
 
     :param dsm_epsg: epsg code for the CRS of the final output raster
@@ -157,7 +158,7 @@ def create_combined_sparse_cloud(  # noqa: C901
 
     if with_coords:
         cloud_indexes_with_types.update(
-            {cst.POINTS_CLOUD_COORD_EPI_GEOM_I: "uint16"}
+            {cst.POINT_CLOUD_COORD_EPI_GEOM_I: "uint16"}
         )
 
     cloud_indexes = list(cloud_indexes_with_types.keys())
@@ -222,7 +223,7 @@ def create_combined_sparse_cloud(  # noqa: C901
         crop_cloud[cloud_indexes.index(cst.Z), :] = crop_z
 
         # add index of original point cloud
-        crop_cloud[cloud_indexes.index(cst.POINTS_CLOUD_GLOBAL_ID), :] = (
+        crop_cloud[cloud_indexes.index(cst_plugin.POINT_CLOUD_GLOBAL_ID), :] = (
             cloud_global_id
         )
 
@@ -232,12 +233,12 @@ def create_combined_sparse_cloud(  # noqa: C901
                 bbox[0], bbox[1], num=bbox[1] - bbox[0] + 1
             )
             crop_cloud[
-                cloud_indexes.index(cst.POINTS_CLOUD_COORD_EPI_GEOM_I), :
+                cloud_indexes.index(cst.POINT_CLOUD_COORD_EPI_GEOM_I), :
             ] = coords_line
 
         # remove masked data (pandora + out of the terrain tile points)
         crop_terrain_tile_data_msk = (
-            points_cloud[cst.POINTS_CLOUD_CORR_MSK][bbox[0] : bbox[1]] == 255
+            points_cloud[cst.POINT_CLOUD_CORR_MSK][bbox[0] : bbox[1]] == 255
         )
         if roi:
             crop_terrain_tile_data_msk = np.logical_and(
@@ -376,32 +377,32 @@ def create_combined_dense_cloud(  # noqa: C901
             The combined cloud has x, y, z columns
 
         - if no colors in input and mask data present in cloud_list datasets:
-            labels=[cst.X, cst.Y, cst.Z, cst.POINTS_CLOUD_MSK]\
+            labels=[cst.X, cst.Y, cst.Z, cst.POINT_CLOUD_MSK]\
             The mask values are added to the dataframe.
 
         - if colors are set in input and mask data are present \
             in the cloud_list datasets:
-           labels=[cst.X, cst.Y, cst.Z, cst.POINTS_CLOUD_MSK,\
-                     cst.POINTS_CLOUD_CLR_KEY_ROOT+"0",\
-                     cst.POINTS_CLOUD_CLR_KEY_ROOT+"1",\
-                     cst.POINTS_CLOUD_CLR_KEY_ROOT+"2"]\
+           labels=[cst.X, cst.Y, cst.Z, cst.POINT_CLOUD_MSK,\
+                     cst.POINT_CLOUD_CLR_KEY_ROOT+"0",\
+                     cst.POINT_CLOUD_CLR_KEY_ROOT+"1",\
+                     cst.POINT_CLOUD_CLR_KEY_ROOT+"2"]\
             Color channels information are added to the dataframe.
 
         - if colors in input, mask data present in the cloud_list datasets and\
             the with_coords option is activated:
-             labels=[cst.X, cst.Y, cst.Z, cst.POINTS_CLOUD_MSK,\
-                     cst.POINTS_CLOUD_CLR_KEY_ROOT+"0",\
-                     cst.POINTS_CLOUD_CLR_KEY_ROOT+"1",\
-                     cst.POINTS_CLOUD_CLR_KEY_ROOT+"2"\
-                     cst.POINTS_CLOUD_COORD_EPI_GEOM_I,\
-                     cst.POINTS_CLOUD_COORD_EPI_GEOM_J,\
-                     cst.POINTS_CLOUD_ID_IM_EPI]\
+             labels=[cst.X, cst.Y, cst.Z, cst.POINT_CLOUD_MSK,\
+                     cst.POINT_CLOUD_CLR_KEY_ROOT+"0",\
+                     cst.POINT_CLOUD_CLR_KEY_ROOT+"1",\
+                     cst.POINT_CLOUD_CLR_KEY_ROOT+"2"\
+                     cst.POINT_CLOUD_COORD_EPI_GEOM_I,\
+                     cst.POINT_CLOUD_COORD_EPI_GEOM_J,\
+                     cst.POINT_CLOUD_ID_IM_EPI]\
             The pixel position of the xyz point in the original epipolar\
             image (coord_epi_geom_i, coord_epi_geom_j) are added\
             to the dataframe along with the index of its original cloud\
             in the cloud_list input.
         - if confidence intervals on Z in input, then\
-            [cst.Z_INF, cst.Z_SUP] are also added to the labels
+            [cst_plugin.Z_INF, cst_plugin.Z_SUP] are also added to the labels
 
 
     :param dsm_epsg: epsg code for the CRS of the final output raster
@@ -438,9 +439,9 @@ def create_combined_dense_cloud(  # noqa: C901
     if with_coords:
         cloud_indexes_with_types.update(
             {
-                cst.POINTS_CLOUD_COORD_EPI_GEOM_I: "uint16",
-                cst.POINTS_CLOUD_COORD_EPI_GEOM_J: "uint16",
-                cst.POINTS_CLOUD_ID_IM_EPI: "uint16",
+                cst.POINT_CLOUD_COORD_EPI_GEOM_I: "uint16",
+                cst.POINT_CLOUD_COORD_EPI_GEOM_J: "uint16",
+                cst.POINT_CLOUD_ID_IM_EPI: "uint16",
             }
         )
 
@@ -512,33 +513,33 @@ def create_combined_dense_cloud(  # noqa: C901
         flatten_cloud[cloud_indexes.index(cst.Y), :] = np.ravel(crop_y)
         flatten_cloud[cloud_indexes.index(cst.Z), :] = np.ravel(crop_z)
 
-        if (cst.Z_INF in cloud_indexes) and (cst.Z_SUP in cloud_indexes):
-            full_z_inf = points_cloud[cst.Z_INF].values
-            full_z_sup = points_cloud[cst.Z_SUP].values
+        if (cst_plugin.Z_INF in cloud_indexes) and (cst_plugin.Z_SUP in cloud_indexes):
+            full_z_inf = points_cloud[cst_plugin.Z_INF].values
+            full_z_sup = points_cloud[cst_plugin.Z_SUP].values
             crop_z_inf = full_z_inf[
                 bbox[0] : bbox[2] + 1, bbox[1] : bbox[3] + 1
             ]
             crop_z_sup = full_z_sup[
                 bbox[0] : bbox[2] + 1, bbox[1] : bbox[3] + 1
             ]
-            flatten_cloud[cloud_indexes.index(cst.Z_INF), :] = np.ravel(
+            flatten_cloud[cloud_indexes.index(cst_plugin.Z_INF), :] = np.ravel(
                 crop_z_inf
             )
-            flatten_cloud[cloud_indexes.index(cst.Z_SUP), :] = np.ravel(
+            flatten_cloud[cloud_indexes.index(cst_plugin.Z_SUP), :] = np.ravel(
                 crop_z_sup
             )
 
         # add index of original point cloud
-        flatten_cloud[cloud_indexes.index(cst.POINTS_CLOUD_GLOBAL_ID), :] = (
+        flatten_cloud[cloud_indexes.index(cst_plugin.POINT_CLOUD_GLOBAL_ID), :] = (
             cloud_global_id
         )
 
         # add additional information to point cloud
         arrays_to_add_to_points_cloud = [
-            (cst.EPI_COLOR, cst.POINTS_CLOUD_CLR_KEY_ROOT),
-            (cst.EPI_MSK, cst.POINTS_CLOUD_MSK),
-            (cst.EPI_CLASSIFICATION, cst.POINTS_CLOUD_CLASSIF_KEY_ROOT),
-            (cst.EPI_FILLING, cst.POINTS_CLOUD_FILLING_KEY_ROOT),
+            (cst_plugin.EPI_COLOR, cst.POINT_CLOUD_CLR_KEY_ROOT),
+            (cst.EPI_MSK, cst.POINT_CLOUD_MSK),
+            (cst.EPI_CLASSIFICATION, cst.POINT_CLOUD_CLASSIF_KEY_ROOT),
+            (cst.EPI_FILLING, cst.POINT_CLOUD_FILLING_KEY_ROOT),
         ]
 
         # add confidence layers
@@ -568,18 +569,18 @@ def create_combined_dense_cloud(  # noqa: C901
             coords_col, coords_line = np.meshgrid(coords_col, coords_line)
 
             flatten_cloud[
-                cloud_indexes.index(cst.POINTS_CLOUD_COORD_EPI_GEOM_I), :
+                cloud_indexes.index(cst.POINT_CLOUD_COORD_EPI_GEOM_I), :
             ] = np.ravel(coords_line)
             flatten_cloud[
-                cloud_indexes.index(cst.POINTS_CLOUD_COORD_EPI_GEOM_J), :
+                cloud_indexes.index(cst.POINT_CLOUD_COORD_EPI_GEOM_J), :
             ] = np.ravel(coords_col)
             flatten_cloud[
-                cloud_indexes.index(cst.POINTS_CLOUD_ID_IM_EPI), :
+                cloud_indexes.index(cst.POINT_CLOUD_ID_IM_EPI), :
             ] = cloud_list_id
 
         # remove masked data (pandora + out of the terrain tile points)
         crop_terrain_tile_data_msk = (
-            points_cloud[cst.POINTS_CLOUD_CORR_MSK].values[
+            points_cloud[cst.POINT_CLOUD_CORR_MSK].values[
                 bbox[0] : bbox[2] + 1, bbox[1] : bbox[3] + 1
             ]
             == 255
@@ -617,43 +618,43 @@ def create_points_cloud_index(cloud_sample):
     Create point cloud index from cloud list keys and color inputs
     """
     cloud_indexes_with_types = {
-        cst.POINTS_CLOUD_GLOBAL_ID: "uint16",
+        cst_plugin.POINT_CLOUD_GLOBAL_ID: "uint16",
         cst.X: "float64",
         cst.Y: "float64",
         cst.Z: "float64",
     }
 
     # Add Z_inf and Z_sup if intervals have been computed
-    if (cst.Z_INF in cloud_sample) and (cst.Z_SUP in cloud_sample):
-        cloud_indexes_with_types[cst.Z_INF] = "float64"
-        cloud_indexes_with_types[cst.Z_SUP] = "float64"
+    if (cst_plugin.Z_INF in cloud_sample) and (cst_plugin.Z_SUP in cloud_sample):
+        cloud_indexes_with_types[cst_plugin.Z_INF] = "float64"
+        cloud_indexes_with_types[cst_plugin.Z_SUP] = "float64"
 
     # Add mask index
     if cst.EPI_MSK in cloud_sample:
-        cloud_indexes_with_types[cst.POINTS_CLOUD_MSK] = "uint8"
+        cloud_indexes_with_types[cst.POINT_CLOUD_MSK] = "uint8"
 
     # Add color indexes
-    if cst.EPI_COLOR in cloud_sample:
+    if cst_plugin.EPI_COLOR in cloud_sample:
         band_color = list(cloud_sample.coords[cst.BAND_IM].to_numpy())
         color_type = "float32"
         if "color_type" in cloud_sample.attrs:
             color_type = cloud_sample.attrs["color_type"]
         for band in band_color:
-            band_index = "{}_{}".format(cst.POINTS_CLOUD_CLR_KEY_ROOT, band)
+            band_index = "{}_{}".format(cst.POINT_CLOUD_CLR_KEY_ROOT, band)
             cloud_indexes_with_types[band_index] = color_type
 
     # Add classif indexes
     if cst.EPI_CLASSIFICATION in cloud_sample:
         band_classif = list(cloud_sample.coords[cst.BAND_CLASSIF].to_numpy())
         for band in band_classif:
-            band_index = "{}_{}".format(cst.POINTS_CLOUD_CLASSIF_KEY_ROOT, band)
+            band_index = "{}_{}".format(cst.POINT_CLOUD_CLASSIF_KEY_ROOT, band)
             cloud_indexes_with_types[band_index] = "boolean"
 
     # Add filling information indexes
     if cst.EPI_FILLING in cloud_sample:
         band_filling = list(cloud_sample.coords[cst.BAND_FILLING].to_numpy())
         for band in band_filling:
-            band_index = "{}_{}".format(cst.POINTS_CLOUD_FILLING_KEY_ROOT, band)
+            band_index = "{}_{}".format(cst.POINT_CLOUD_FILLING_KEY_ROOT, band)
             cloud_indexes_with_types[band_index] = "boolean"
 
     # Add confidence indexes
@@ -714,7 +715,7 @@ def get_color_type(clouds):
     """
     color_types = []
     for cloud_id, cloud_item in enumerate(clouds):
-        if cst.EPI_COLOR in clouds[cloud_id]:
+        if cst_plugin.EPI_COLOR in clouds[cloud_id]:
             if "color_type" in cloud_item.attrs:
                 color_types.append(cloud_item.attrs["color_type"])
     if color_types:
@@ -741,8 +742,8 @@ def get_number_bands(cloud_list):
     nb_band_clr = 0
     for current_cloud in cloud_list:
         current_cloud_nb_bands = 0
-        if cst.EPI_COLOR in current_cloud:
-            clr_im = current_cloud[cst.EPI_COLOR].values
+        if cst_plugin.EPI_COLOR in current_cloud:
+            clr_im = current_cloud[cst_plugin.EPI_COLOR].values
             if len(clr_im.shape) == 2:
                 current_cloud_nb_bands = 1
             else:
@@ -781,9 +782,9 @@ def filter_cloud(
         or if the cloud Dataframe has not been build with with_coords option)
     """
     if filtered_elt_pos and not (
-        cst.POINTS_CLOUD_COORD_EPI_GEOM_I in cloud.columns
-        and cst.POINTS_CLOUD_COORD_EPI_GEOM_J in cloud.columns
-        and cst.POINTS_CLOUD_ID_IM_EPI in cloud.columns
+        cst.POINT_CLOUD_COORD_EPI_GEOM_I in cloud.columns
+        and cst.POINT_CLOUD_COORD_EPI_GEOM_J in cloud.columns
+        and cst.POINT_CLOUD_ID_IM_EPI in cloud.columns
     ):
         logging.warning(
             "In filter_cloud: the filtered_elt_pos has been activated but "
@@ -795,9 +796,9 @@ def filter_cloud(
     # retrieve removed points position in their original epipolar images
     if filtered_elt_pos:
         labels = [
-            cst.POINTS_CLOUD_COORD_EPI_GEOM_I,
-            cst.POINTS_CLOUD_COORD_EPI_GEOM_J,
-            cst.POINTS_CLOUD_ID_IM_EPI,
+            cst.POINT_CLOUD_COORD_EPI_GEOM_I,
+            cst.POINT_CLOUD_COORD_EPI_GEOM_J,
+            cst.POINT_CLOUD_ID_IM_EPI,
         ]
 
         removed_elt_pos_infos = cloud.loc[
@@ -830,8 +831,8 @@ def add_cloud_filtering_msk(
 
     :param clouds_list: Input list of clouds
     :param elt_pos_infos: pandas dataframe
-        composed of cst.POINTS_CLOUD_COORD_EPI_GEOM_I,
-        cst.POINTS_CLOUD_COORD_EPI_GEOM_J, cst.POINTS_CLOUD_ID_IM_EPI columns
+        composed of cst.POINT_CLOUD_COORD_EPI_GEOM_I,
+        cst.POINT_CLOUD_COORD_EPI_GEOM_J, cst.POINT_CLOUD_ID_IM_EPI columns
         as computed in the create_combined_cloud function.
         Those information are used to retrieve the point position
         in its original epipolar image.
@@ -842,9 +843,9 @@ def add_cloud_filtering_msk(
     # Verify that the elt_pos_infos is consistent
     if (
         elt_pos_infos is None
-        or cst.POINTS_CLOUD_COORD_EPI_GEOM_I not in elt_pos_infos.columns
-        or cst.POINTS_CLOUD_COORD_EPI_GEOM_J not in elt_pos_infos.columns
-        or cst.POINTS_CLOUD_ID_IM_EPI not in elt_pos_infos.columns
+        or cst.POINT_CLOUD_COORD_EPI_GEOM_I not in elt_pos_infos.columns
+        or cst.POINT_CLOUD_COORD_EPI_GEOM_J not in elt_pos_infos.columns
+        or cst.POINT_CLOUD_ID_IM_EPI not in elt_pos_infos.columns
     ):
         logging.warning(
             "Cannot generate filtered elements mask, "
@@ -853,7 +854,7 @@ def add_cloud_filtering_msk(
         )
 
     else:
-        elt_index = elt_pos_infos.loc[:, cst.POINTS_CLOUD_ID_IM_EPI].to_numpy()
+        elt_index = elt_pos_infos.loc[:, cst.POINT_CLOUD_ID_IM_EPI].to_numpy()
 
         min_elt_index = np.min(elt_index)
         max_elt_index = np.max(elt_index)
@@ -879,13 +880,13 @@ def add_cloud_filtering_msk(
                 i = int(
                     elt_pos_infos.loc[
                         cur_elt_index[elt_pos],
-                        cst.POINTS_CLOUD_COORD_EPI_GEOM_I,
+                        cst.POINT_CLOUD_COORD_EPI_GEOM_I,
                     ].iat[0]
                 )
                 j = int(
                     elt_pos_infos.loc[
                         cur_elt_index[elt_pos],
-                        cst.POINTS_CLOUD_COORD_EPI_GEOM_J,
+                        cst.POINT_CLOUD_COORD_EPI_GEOM_J,
                     ].iat[0]
                 )
 

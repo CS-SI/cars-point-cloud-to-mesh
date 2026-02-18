@@ -354,10 +354,10 @@ def create_combined_cloud_from_tif(
                     )
 
         # add source file id
-        cloud_data[cst_plugin.POINTS_CLOUD_GLOBAL_ID] = (
+        cloud_data[cst_plugin.POINT_CLOUD_GLOBAL_ID] = (
             np.ones(cloud_data[cst.INDEX_DEPTH_MAP_X].shape) * cloud_file_id
         )
-        cloud_data_bands.append(cst_plugin.POINTS_CLOUD_GLOBAL_ID)
+        cloud_data_bands.append(cst_plugin.POINT_CLOUD_GLOBAL_ID)
         cloud_data_types.append("uint16")
 
         # Create cloud pandas
@@ -988,9 +988,9 @@ def compute_x_y_min_max_wrapper(items, epsg, window, saving_info=None):
         data_dict[cst.INDEX_DEPTH_MAP_FILLING] = items[
             cst.INDEX_DEPTH_MAP_FILLING
         ]
-    if cst_plugin.POINTS_CLOUD_CONFIDENCE_KEY_ROOT in items:
-        data_dict[cst_plugin.POINTS_CLOUD_CONFIDENCE_KEY_ROOT] = items[
-            cst_plugin.POINTS_CLOUD_CONFIDENCE_KEY_ROOT
+    if cst_plugin.POINT_CLOUD_CONFIDENCE_KEY_ROOT in items:
+        data_dict[cst_plugin.POINT_CLOUD_CONFIDENCE_KEY_ROOT] = items[
+            cst_plugin.POINT_CLOUD_CONFIDENCE_KEY_ROOT
         ]
 
     # create dict

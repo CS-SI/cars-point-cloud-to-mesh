@@ -23,5 +23,10 @@
 CARS Constants module
 """
 
-POINTS_CLOUD_GLOBAL_ID = "global_id"
-POINTS_CLOUD_CONFIDENCE_KEY_ROOT = "confidence"
+Z_INF = "intervals_z_inf"
+Z_SUP = "intervals_z_sup"
+
+EPI_COLOR = "color"
+
+POINT_CLOUD_GLOBAL_ID = "global_id"
+POINT_CLOUD_CONFIDENCE_KEY_ROOT = "confidence"
