@@ -125,6 +125,7 @@ class PointCloudToMeshPipeline(PipelineTemplate):
             # pc_inputs requires it :)
             cst.INDEX_DEPTH_MAP_CLASSIFICATION: str,  # require classif
             cst.INDEX_DEPTH_MAP_PERFORMANCE_MAP: Or(str, None),
+            cst.INDEX_DEPTH_MAP_AMBIGUITY: Or(str, None),
             cst.INDEX_DEPTH_MAP_FILLING: Or(str, None),
             cst.INDEX_DEPTH_MAP_EPSG: Or(str, int, None),
         }
