@@ -1,23 +1,133 @@
-# pyproject.toml main python packaging configuration
+# pyproject.toml
 
 [build-system]
-# setup with setuptools and setuptools_scm (git automatic versioning)
-requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
+requires = [
+  "setuptools>=68",
+  "wheel",
+  "setuptools_scm>=8",
+]
 build-backend = "setuptools.build_meta"
 
-# Tools configuration supporting pyproject.toml
+[project]
+name = "cars_point_cloud_to_mesh"
+description = "Mesh generation from CARS point clouds"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.10"
+
+dynamic = ["version"]
+
+license = "Apache-2.0"
+license-files = ["LICENCE", "NOTICE", "AUTHORS.md"]
+
+authors = [
+  { name = "CS Group", email = "ospo@cs-soprasteria.com" },
+]
+
+keywords = [
+  "cars",
+  "cars_point_cloud_to_mesh",
+  "DEM",
+  "pandora",
+  "photogrammetry",
+  "3D",
+]
+
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Intended Audience :: End Users/Desktop",
+  "Intended Audience :: Science/Research",
+  "Natural Language :: English",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+  "argparse",
+  "cars==1.0.0",
+  "json-checker",
+  "numba",
+  "numpy",
+  "rasterio",
+  "scipy",
+  "triangle>=20230923",
+]
+
+[project.urls]
+Homepage = "https://github.com/CS-SI/cars_point_cloud_to_mesh"
+
+[project.scripts]
+cars_point_cloud_to_mesh = "cars_point_cloud_to_mesh.cli:main"
+
+[project.entry-points."cars.plugins"]
+plugin = "cars_point_cloud_to_mesh"
+
+[project.optional-dependencies]
+dev = [
+  "build",
+  "black>=21.5b0",
+  "flake8>=3.9.1",
+  "flake8-bugbear>=21.4.3",
+  "flake8-comprehensions>=3.4.0",
+  "isort>=5.8.0",
+  "pre-commit",
+  "pylint",
+  "pytest",
+  "pytest-cov",
+  "twine",
+  "setuptools_scm",
+]
+
+docs = [
+  "sphinx",
+  "sphinx_autoapi",
+  "sphinx_rtd_theme",
+  "sphinx_tabs",
+]
+
+notebook = [
+  "bokeh",
+  "notebook",
+]
+
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cars_point_cloud_to_mesh*"]
+
+[tool.setuptools.package-data]
+cars_point_cloud_to_mesh = ["data/*"]
 
 [tool.setuptools_scm]
-# Enable version inference: https://pypi.org/project/setuptools-scm/#description
+# version_scheme = "no-guess-dev"
+# local_scheme = "node-and-date"
+
 
 [tool.black]
-# https://github.com/psf/black
 line-length = 80
-exclude = "(.eggs|.git|.mypy_cache|.nox|.tox|_build|build|dist|venv)"
+exclude = """
+/(
+  \\.eggs
+| \\.git
+| \\.mypy_cache
+| \\.nox
+| \\.tox
+| _build
+| build
+| dist
+| venv
+)/
+"""
 
 [tool.isort]
-# https://github.com/PyCQA/isort
-profile = 'black'
+profile = "black"
 line_length = 80
 
 [tool.mypy]
@@ -29,10 +139,8 @@ local_partial_types = false
 warn_unused_ignores = true
 check_untyped_defs = true
 ignore_missing_imports = true
-disable_error_code = 'attr-defined'
+disable_error_code = "attr-defined"
 
 [[tool.mypy.overrides]]
-module = [
-    'setuptools',
-]
+module = ["setuptools"]
 ignore_missing_imports = true
