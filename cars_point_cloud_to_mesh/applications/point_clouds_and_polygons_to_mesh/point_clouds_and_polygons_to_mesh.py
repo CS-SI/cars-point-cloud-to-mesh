@@ -51,25 +51,28 @@ class PointCloudsAndPolygonsToMesh(ApplicationTemplate, metaclass=ABCMeta):
         """
 
         meshing_method = cls.default_application
-        if bool(conf) is False:
+        if not conf:
             logging.info(
-                "Meshing method not specified, default {} is used",
+                "Meshing method not specified, default %s is used",
                 meshing_method,
             )
         else:
             meshing_method = conf.get("method", cls.default_application)
 
         if meshing_method not in cls.available_applications:
-            logging.error("No meshing application named {} registered")
+            logging.error(
+                "No meshing application named %s registered",
+                meshing_method,
+            )
             raise KeyError(
-                "No meshing application "
-                "named {} registered".format(meshing_method)
+                f"No meshing application named {meshing_method} registered"
             )
 
         logging.info(
-            "The PointCloudToPolygons"
-            "({}) application will be used".format(meshing_method)
+            "The PointCloudsAndPolygonsToMesh (%s) application will be used",
+            meshing_method,
         )
+
 
         return super(PointCloudsAndPolygonsToMesh, cls).__new__(
             cls.available_applications[meshing_method]

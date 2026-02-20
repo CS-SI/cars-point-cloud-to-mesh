@@ -26,6 +26,8 @@ Cars point cloud to meshes pipeline
 from __future__ import print_function
 import os
 
+import logging
+
 import cars_point_cloud_to_mesh.pipelines.parameters.depth_map_inputs_constants as dm_cst
 from cars_point_cloud_to_mesh.applications.point_cloud_fusion import pc_tif_tools
 
@@ -37,15 +39,17 @@ from cars.orchestrator import orchestrator
 from cars.pipelines.parameters import output_constants as out_cst
 from cars.pipelines.pipeline import Pipeline
 from cars.pipelines.pipeline_constants import (
+    APPLICATIONS,
     INPUT,
     ORCHESTRATOR,
     OUTPUT,
-    PIPELINE,
+    # PIPELINE,
 )
 from cars.pipelines.pipeline_template import PipelineTemplate
 import cars_point_cloud_to_mesh.pipelines.parameters.depth_map_inputs as dm_inputs
-from json_checker import Checker, Or
+from json_checker import Checker, Or, OptionalKey
 
+PIPELINE = "point_cloud_to_mesh"
 
 @Pipeline.register(
     "point_cloud_to_mesh",
@@ -70,23 +74,46 @@ class PointCloudToMeshPipeline(PipelineTemplate):
         # Used conf
         self.used_conf = {}
 
-        # Pipeline
-        self.used_conf[PIPELINE] = conf.get(PIPELINE, "point_cloud_to_mesh")
+        if config_dir is not None:
+            config_dir = os.path.abspath(config_dir)
+        self.config_dir = config_dir
 
-        # Default point clouds check
-        self.inputs = self.check_inputs(conf, config_dir=config_dir)
-        self.used_conf[INPUT] = self.inputs
+        self.check_global_schema(conf)
+        if PIPELINE in conf:
+            self.check_pipeline_conf(conf)
 
-        # Check output
-        self.used_conf[OUTPUT] = self.check_output(conf.get(OUTPUT, None))
-
-        self.out_dir = self.used_conf[OUTPUT][out_cst.OUT_DIRECTORY]
-        
+        # Orchestrator
         self.used_conf[ORCHESTRATOR] = self.check_orchestrator(
             conf.get(ORCHESTRATOR, None)
         )
 
-        self.check_applications(conf["applications"])
+        # Inputs 
+        self.inputs = self.check_inputs(conf, config_dir=config_dir)
+        self.used_conf[INPUT] = self.inputs
+
+        # Output 
+        output = self.check_output(conf.get(OUTPUT, None))
+        self.used_conf[OUTPUT] = output
+        self.out_dir = output[out_cst.OUT_DIRECTORY]
+
+        # Pipeline 
+        pipeline_conf = conf.get(PIPELINE, {})
+        self.used_conf[PIPELINE] = {}
+
+        # Applications
+        application_conf = self.check_applications(
+            pipeline_conf.get(APPLICATIONS, {})
+        )
+
+        self.used_conf[PIPELINE][APPLICATIONS] = application_conf
+
+    def check_pipeline_conf(self, conf):
+        pipeline_schema = {
+            OptionalKey(APPLICATIONS): dict,
+        }
+
+        checker_inputs = Checker(pipeline_schema)
+        checker_inputs.validate(conf[PIPELINE])
 
     def check_inputs(self, conf, config_dir=None):
 
@@ -172,31 +199,74 @@ class PointCloudToMeshPipeline(PipelineTemplate):
     def check_applications(self, conf):
         """
         Check the given configuration for applications
+        and instantiate default mesh pipeline applications.
 
         :param conf: configuration of applications
         :type conf: dict
+        :return: normalized configuration used by applications
+        :rtype: dict
         """
 
+        # Safety: allow None
+        if conf is None:
+            conf = {}
+
+        # Expected applications in mesh pipeline
+        needed_applications = [
+            "create_dtm_mesh",
+            "point_cloud_to_polygons",
+            "group_close_polygons",
+            "point_clouds_and_polygons_to_mesh",
+        ]
+
+        # Validate that no unexpected application is provided
+        for app_key in conf.keys():
+            if app_key not in needed_applications:
+                msg = (
+                    f"No {app_key} application used in the "
+                    "mesh default pipeline"
+                )
+                logging.error(msg)
+                raise NameError(msg)
+
+        # Normalize configuration
+        used_conf = {}
+
+        for app_key in needed_applications:
+            used_conf[app_key] = conf.get(app_key, {}) or {}
+
+        # Instantiate applications (always loaded)
         self.dtm_creation = Application(
             "create_dtm_mesh",
-            cfg=conf.get("create_dtm_mesh", {}),
+            cfg=used_conf["create_dtm_mesh"],
         )
+        used_conf["create_dtm_mesh"] = self.dtm_creation.get_conf()
 
         self.pcd_to_grouping_polys = Application(
             "point_cloud_to_polygons",
-            cfg=conf.get("point_cloud_to_polygons", {}),
+            cfg=used_conf["point_cloud_to_polygons"],
+        )
+        used_conf["point_cloud_to_polygons"] = (
+            self.pcd_to_grouping_polys.get_conf()
         )
 
         self.group_grouping_polys = Application(
-            "group_close_polygons", cfg=conf.get("group_close_polygons", {})
+            "group_close_polygons",
+            cfg=used_conf["group_close_polygons"],
+        )
+        used_conf["group_close_polygons"] = (
+            self.group_grouping_polys.get_conf()
         )
 
         self.grouping_polys_to_mesh = Application(
             "point_clouds_and_polygons_to_mesh",
-            cfg=conf.get("point_clouds_and_polygons_to_mesh", {}),
+            cfg=used_conf["point_clouds_and_polygons_to_mesh"],
+        )
+        used_conf["point_clouds_and_polygons_to_mesh"] = (
+            self.grouping_polys_to_mesh.get_conf()
         )
 
-        return conf
+        return used_conf
 
     def run(self, log_dir=None):
         """
