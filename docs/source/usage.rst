@@ -28,15 +28,17 @@ With defaut configuration:
         }
       }
     },    
-    "applications": {
-      "create_dtm_mesh": {
-        "method": "percentile_of_unclassified_points"
-      },
-      "point_clouds_and_polygons_to_mesh": {
-        "method": "alpha_shape_delaunay_dtm_projection",
-        "out_mesh_mode": "texture"
+   "point_cloud_to_mesh": {
+      "applications": {
+        "create_dtm_mesh": {
+          "method": "percentile_of_unclassified_points"
+        },
+        "point_clouds_and_polygons_to_mesh": {
+          "method": "alpha_shape_delaunay_dtm_projection",
+          "out_mesh_mode": "texture"
+        }
       }
-    },    
+    },  
     "output": {
       "directory": "out_meshes/",
       "epsg": 4978
