@@ -17,14 +17,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 """
-Initialization of the plugin's applications
+This module contains the depth map inputs constants for the point cloud to mesh pipeline
 """
-from . import (  # noqa: F401
-    create_dtm_mesh,
-    group_close_polygons,
-    point_cloud_to_polygons,
-    point_clouds_and_polygons_to_mesh,
-    point_cloud_fusion,
-    holes_detection,
-)
+
+DEPTH_MAP = "depth_map"

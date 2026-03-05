@@ -34,7 +34,8 @@ import os
 import cars.orchestrator.orchestrator as ocht
 import numpy as np
 import triangle as libtr
-from cars.core import projection, tiling
+from cars.core import tiling
+from cars_point_cloud_to_mesh.core import projection
 
 # CARS imports
 from cars.data_structures import cars_dataset

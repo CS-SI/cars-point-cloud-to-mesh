@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 # coding: utf8
 #
+# Copyright (c) 2020 Centre National d'Etudes Spatiales (CNES).
 # Copyright (C) 2023 CS Group.
 #
-# This file is part of cars_point_cloud_to_mesh
+# This file is part of CARS
+# (see https://github.com/CNES/cars).
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,13 +20,13 @@
 # limitations under the License.
 #
 """
-Initialization of the plugin's applications
+CARS Constants module
 """
-from . import (  # noqa: F401
-    create_dtm_mesh,
-    group_close_polygons,
-    point_cloud_to_polygons,
-    point_clouds_and_polygons_to_mesh,
-    point_cloud_fusion,
-    holes_detection,
-)
+
+Z_INF = "intervals_z_inf"
+Z_SUP = "intervals_z_sup"
+
+EPI_COLOR = "color"
+
+POINT_CLOUD_GLOBAL_ID = "global_id"
+POINT_CLOUD_CONFIDENCE_KEY_ROOT = "confidence"

@@ -33,13 +33,6 @@ If you have existing gdal and proj, use :
     source venv/bin/activate
     pip install -e .
 
-# Patch a file in the current version of CARS (0.8.0), fixed in 0.9.0
-
-.. code-block:: bash
-
-    patch --forward -p1 ./venv/lib/python3.8/site-packages/cars/applications/point_cloud_fusion/pc_tif_tools.py ./tests/cars_patch_data/patch_file_cars_pc_tif_tools
-
-
 Dependencies : **git**, **make**
 
 Packages is available in virtualenv in developer mode !

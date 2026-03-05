@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 # coding: utf8
 #
-# Copyright (C) 2023 CS Group.
+# Copyright (c) 2020 Centre National d'Etudes Spatiales (CNES).
 #
-# This file is part of cars_point_cloud_to_mesh
+# This file is part of CARS
+# (see https://github.com/CNES/cars).
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,13 +19,21 @@
 # limitations under the License.
 #
 """
-Initialization of the plugin's applications
+file contains all the constants used in cloud fusion module
 """
-from . import (  # noqa: F401
-    create_dtm_mesh,
-    group_close_polygons,
-    point_cloud_to_polygons,
-    point_clouds_and_polygons_to_mesh,
-    point_cloud_fusion,
-    holes_detection,
-)
+
+
+CLOUD_FUSION_RUN_TAG = "cloud_fusion_run"
+
+# Params
+METHOD = "method"
+TERRAIN_TILE_SIZE = "terrain_tile_size"
+RESOLUTION = "resolution"
+
+# Run infos
+EPSG_TAG = "epsg"
+MARGINS_TAG = "margins"
+NUMBER_TERRAIN_TILES = "number_terrain_tiles"
+XSIZE = "x_size"
+YSIZE = "y_size"
+BOUNDS = "bounds"
