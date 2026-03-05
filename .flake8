@@ -1,0 +1,6 @@
+[flake8]
+exclude = .git, venv, build, dist, tests/test_output, docs
+extend-ignore = E203, W503
+max-complexity = 15
+max-line-length = 80
+select = E,F,W,C,B9,C4,B
