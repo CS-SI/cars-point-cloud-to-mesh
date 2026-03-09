@@ -44,10 +44,9 @@ def get_grid(point_clouds, grid_size, building_index):
     """
 
     pts = []
-    dms = []
-    tid = []
-    for pcd in point_clouds:
+    bands = {"depth_map": [], "tile_id": [], "height": [], "normals": []}
 
+    for pcd in point_clouds:
         classif = classif_to_stacked_array(pcd, building_index)
         classified_selector = np.logical_and(
             classif.flatten() > 0,
@@ -59,36 +58,27 @@ def get_grid(point_clouds, grid_size, building_index):
             pcd["z"].values.flatten()[classified_selector],
         ]
         t_pts = np.column_stack(stack_vals)
-        t_pts = projection.points_cloud_conversion(
-            t_pts, pcd.attrs["epsg"], 32631
-        )
+        t_pts = projection.points_cloud_conversion(t_pts, pcd.attrs["epsg"], 32631)
         pts.append(t_pts)
 
-        edges_depth_map = None
-        edges_tile_id = None
+        bands["height"].append(pcd["z"].values.flatten()[classified_selector])
+
         if "edges_depth_map" in pcd:
-            edges_depth_map = pcd["edges_depth_map"].values[0].flatten()[classified_selector]
-            dms.append(edges_depth_map)
+            bands["depth_map"].append(pcd["edges_depth_map"].values[0].flatten()[classified_selector])
         if "edges_tile_id" in pcd:
-            edges_tile_id = pcd["edges_tile_id"].values[0].flatten()[classified_selector]
-            tid.append(edges_tile_id)
+            bands["tile_id"].append(pcd["edges_tile_id"].values[0].flatten()[classified_selector])
+        if "edges_normals" in pcd:
+            bands["normals"].append(pcd["edges_normals"].values[0].flatten()[classified_selector])
 
     pts = np.row_stack(pts)
     if len(pts) == 0:
         return None
 
-    if len(dms) == 0:
-        dms = None
-    else:
-        dms = np.concatenate(dms)
-    if len(tid) == 0:
-        tid = None
-    else:
-        tid = np.concatenate(tid)
-        
+    other_bands = {
+        key: np.concatenate(val) for key, val in bands.items() if len(val) > 0
+    }
 
-    return east.Grid(pts, [grid_size, grid_size], depth_map=dms, tile_id=tid)
-
+    return east.Grid(pts, [grid_size, grid_size], other_bands=other_bands)
 
 def group_by_external_poly(grid, polys, groups):
     """
@@ -384,88 +374,116 @@ def get_point_in_contour(contour):
 
     return contour[0] - contour[0]  # (0, 0)
 
+
+def merge_duplicate_points(pts, sgs, attrs):
+    pts = np.array(pts)
+    sgs = np.array(sgs)
+
+    _, first_occurrence, inverse = np.unique(
+        pts, axis=0, return_index=True, return_inverse=True
+    )
+
+    canonical = first_occurrence[inverse]
+
+    sorted_first = np.sort(first_occurrence)
+    new_pts = pts[sorted_first]
+    new_attrs = attrs[sorted_first]
+
+    remap = np.empty(len(pts), dtype=int)
+    remap[sorted_first] = np.arange(len(sorted_first))
+
+    sgs = remap[canonical[sgs]]
+
+    # Remove degenerate segments (both endpoints identical after merging)
+    sgs = sgs[sgs[:, 0] != sgs[:, 1]]
+
+    return new_pts, sgs, new_attrs
+
+
 def delaunay_triangulate(buildingids, grid, inside_points=None):
     """
-    Returns the constrained delaunay triangulation of a
+    Returns the constrained Delaunay triangulation of a
     building's contours (holes included), optionally
     inserting inside_points into the triangulation.
 
-    If for any reason no triangulation could
-    be found, return None
+    Per-vertex attributes are taken from grid.other_bands
+    and propagated through Triangle using vertex_attributes.
     """
 
-    pts = []
-    sgs = []
-    hls = []
+    pts_xy = []
+    pts_attrs = []
+    segments = []
+    holes = []
 
-    nb_pts = 0
+    offset = 0
+
+    band_keys = [k for k, v in grid.other_bands.items() if v is not None]
 
     for i, contour in enumerate(buildingids):
 
-        contour_pts = grid.points[contour][:, :2]
-        pts.append(contour_pts)
+        contour_pts = grid.points[contour]
+        contour_attrs = np.column_stack([
+            grid.other_bands[k][contour] for k in band_keys
+        ])
 
-        # offset ids by the number of points already inserted
-        sgs.append(
-            np.array(get_segments(contour, closed=False), dtype=int) + nb_pts
-        )
+        xy = contour_pts[:, :2]
+        attrs = contour_attrs
 
-        if i > 0:
-            hls.append(get_point_in_contour(contour_pts))
+        pts_xy.append(xy)
+        pts_attrs.append(attrs)
 
-        nb_pts += len(contour_pts)
+        seg = np.array(get_segments(contour, closed=False), dtype=int)
+        segments.append(seg + offset)
 
-    # add inside points
+        if i > 0:  # holes
+            holes.append(get_point_in_contour(xy))
+
+        offset += len(contour_pts)
+
     if inside_points is not None and len(inside_points) > 0:
-        pts.append(inside_points[:, :2])
-        # No segments added
-        nb_pts += len(inside_points)
 
-    pts = np.vstack(pts)
-    if len(pts) <= 2:
+        inside_pts = grid.points[inside_points]
+        inside_attrs = np.column_stack([
+            grid.other_bands[k][inside_points] for k in band_keys
+        ])
+
+        pts_xy.append(inside_pts[:, :2])
+        pts_attrs.append(inside_attrs)
+
+    pts_xy = np.vstack(pts_xy)
+    pts_attrs = np.vstack(pts_attrs)
+
+    if len(pts_xy) <= 2:
         return None
 
-    sgs = np.vstack(sgs)
+    segments = np.vstack(segments)
 
-    # When using Delaunay on planar as is the case here,
-    # inserting twice the same point leads to a crash.
-    # Fix : Merge points (will need to update segment indices)
-    new_indices = np.arange(len(pts))
-    tbr = np.zeros(len(pts))
-    for i, pt in enumerate(pts):
-        same_pts_indices = np.where(np.all(pts == pt, axis=1))[0]
-        for j in same_pts_indices:
-            if i != j:
-                new_indices[max(i, j)] = min(i, j)  # noqa: B909
-                tbr[max(i, j)] = 1  # noqa: B909
+    pts_xy, segments, pts_attrs = merge_duplicate_points(pts_xy, segments, pts_attrs)
 
-    tbr = np.argwhere(tbr == 1)
-    for index in tbr:
-        pts = np.delete(pts, index, axis=0)
-        new_indices[new_indices > index] -= 1
-        tbr[tbr > index] -= 1
+    if pts_attrs.ndim == 1:
+        pts_attrs = pts_attrs.reshape(-1, 1)
 
-    for seg in sgs:
-        seg[0] = new_indices[seg[0]]  # noqa: B909
-        seg[1] = new_indices[seg[1]]  # noqa: B909
+    delaunay_input = {
+        "vertices": pts_xy,
+        "segments": segments,
+        "vertex_attributes": pts_attrs,
+    }
 
-    delaunay_input = {"vertices": pts, "segments": sgs}
-
-    if len(hls) > 0:  # there may not be any hole in the building
-        delaunay_input["holes"] = np.array(hls)
+    if holes:
+        delaunay_input["holes"] = np.array(holes)
 
     delaunay_output = trlib.triangulate(delaunay_input, "p")
 
-    dks = delaunay_output.keys()
-
-    # this may happen if all points are colinear
-    if "segments" not in dks or "triangles" not in dks:
-        return None
-    if len(delaunay_output["triangles"]) <= 0:
+    if (
+        "triangles" not in delaunay_output
+        or len(delaunay_output["triangles"]) == 0
+    ):
         return None
 
-    if len(sgs) == len(delaunay_output["segments"]):
-        delaunay_output["segments"] = sgs
+    raw = delaunay_output["vertex_attributes"]
+    delaunay_output["attrs"] = {
+        key: raw[:, i:i+1] for i, key in enumerate(band_keys)
+    }
 
     return delaunay_output
 
@@ -481,6 +499,44 @@ def dist_to_line(p, ll, lr):
     )
     return abs(top) / max(bot, 0.00001)  # division by 0 safeguard
 
+
+def densify_contour(contour, grid, spacing):
+    """
+    Adds evenly-spaced points along each edge of a contour into the grid,
+    and returns the updated contour
+    """
+    new_contour = []
+    pts = grid.points
+
+    # Iterate over edges, closing the loop with -1 % len
+    for i in range(len(contour)):
+        a_idx = contour[i]
+        b_idx = contour[(i + 1) % len(contour)]
+        a = pts[a_idx]
+        b = pts[b_idx]
+
+        new_contour.append(a_idx)
+
+        edge_vec = b - a
+        edge_len = np.linalg.norm(edge_vec[:2])  # 2D length drives spacing
+        n_segments = int(np.floor(edge_len / spacing))
+
+        if n_segments < 2:
+            continue  # edge short enough, no insertion needed
+
+        # Interpolate n_segments-1 interior points
+        ts = np.arange(1, n_segments) / n_segments          # (n-1,)
+        interp_pts = a[np.newaxis, :] + ts[:, np.newaxis] * edge_vec[np.newaxis, :]
+
+        # Insert into grid
+        # bands are copied from nearest neighbour by add_points
+        old_n = len(grid.points)
+        grid.add_points(interp_pts)
+        new_indices = np.arange(old_n, len(grid.points))
+        new_contour.extend(new_indices.tolist())
+
+    return np.array(new_contour, dtype=int)
+    
 
 def is_valid_line(left, right, ctr, threshold):
     """
@@ -568,6 +624,41 @@ def simplify_douglaspeucker(ctrpts, ctr, threshold, search_radius):
 
     # if the simplified contour is too small, just keep the original
     return np.array(ctr, dtype=int)
+
+
+def fit_predictions_to_reference(height_ref, height_pred, tile_ids):
+    """
+    Fits predicted heights to reference heights per tile,
+    returning a corrected prediction array.
+    """
+    height_ref  = np.asarray(height_ref).flatten()
+    height_pred = np.asarray(height_pred).flatten()
+    tile_ids    = np.asarray(tile_ids).flatten()
+
+    fitted = np.empty_like(height_pred)
+
+    for tid in np.unique(tile_ids):
+        mask = tile_ids == tid
+        ref  = height_ref[mask]
+        pred = height_pred[mask]
+
+        # Percentile scale to match reference range
+        pred_min, pred_max = np.percentile(pred, [2, 98])
+        ref_min,  ref_max  = np.percentile(ref,  [2, 98])
+
+        pred_range = pred_max - pred_min
+        ref_range  = ref_max  - ref_min
+
+        if pred_range < 1e-6:
+            scaled = pred - pred.mean() + ref.mean()
+        else:
+            scaled = (pred - pred_min) / pred_range * ref_range + ref_min
+
+        # MSE-based offset
+        offset = np.mean(ref - scaled)
+        fitted[mask] = scaled + offset
+
+    return fitted.reshape(-1, 1)
 
 
 def area_errors(points):

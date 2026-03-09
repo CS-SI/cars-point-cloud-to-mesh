@@ -27,10 +27,11 @@ import os
 
 import cars.orchestrator.orchestrator as ocht
 import numpy as np
+import xarray as xr
 from cars.core import tiling
 from cars_point_cloud_to_mesh.core import projection
  
-from cars.data_structures import cars_dataset
+from cars.data_structures import cars_dataset, cars_dict
 from json_checker import And, Checker, Or
 
 from ..create_dtm_mesh import percentile_of_unclassified_points_tools as pupt
@@ -56,6 +57,8 @@ def mesh_point_cloud(
     height_hist_min_peak_prominence,
     min_cluster_area,
     cluster_reassign_search_radius,
+    add_inside_points,
+    fit_depth_map_to_height,
     out_mesh_mode,
     out_epsg,
     out_folder,
@@ -130,22 +133,28 @@ def mesh_point_cloud(
                 visvalingam_area,
             )
 
-        building_points = grid.points[pts_groups[building_key]]
-        building_depth = grid.other_bands["depth_map"][pts_groups[building_key]]
-        building_tile_id = grid.other_bands["tile_id"][pts_groups[building_key]]
+            if add_inside_points:
+                # densify contour to fit the inside points inserted later
+                building_ids[i] = asdt.densify_contour(
+                    building_ids[i],
+                    grid,
+                    spacing=alpha_shape_radius
+                )
 
-        boundary_indices = np.concatenate(building_ids)
-        all_indices = np.array(pts_groups[building_key])
+        if add_inside_points:
+            boundary_indices = np.concatenate(building_ids)
+            all_indices = np.array(pts_groups[building_key])
 
-        inside_mask = ~np.isin(all_indices, boundary_indices)
-        inside_indices = all_indices[inside_mask]
-        inside_points = grid.points[inside_indices]
+            inside_mask = ~np.isin(all_indices, boundary_indices)
+            inside_indices = all_indices[inside_mask]
+        else:
+            inside_indices = None
 
         # Triangulate with interior points
         triangulation = asdt.delaunay_triangulate(
             building_ids,
             grid,
-            inside_points=inside_points
+            inside_points=inside_indices
         )
 
         # No triangulation created (too few points)
@@ -154,31 +163,17 @@ def mesh_point_cloud(
 
         nb_top_verts = len(triangulation["vertices"])
 
-        for edge_tile_id in np.unique(building_tile_id):
-            mask = building_tile_id == edge_tile_id
-
-            building_depth[mask] -= building_depth[mask].min()
-            building_depth[mask] /= building_depth[mask].max()
-
-            building_depth[mask] = 1 - building_depth[mask]
-
-            building_depth[mask] *= (
-                building_points[mask, 2].max()
-                - building_points[mask, 2].min()
+        if add_inside_points and fit_depth_map_to_height:
+            z_values = asdt.fit_predictions_to_reference(
+                triangulation["attrs"]["height"], # height
+                -triangulation["attrs"]["depth_map"], # depth map inverted
+                triangulation["attrs"]["tile_id"].astype(int), # tile ids
             )
-            building_depth[mask] += building_points[mask, 2].min()
-
-        group_mean_height = np.median(building_depth)
-
-        # add the z component to vertices
-        # Build XY->Z lookup
-        xy_to_z = {tuple(pt[:2]): building_depth[i] for i, pt in enumerate(building_points)}
-
-        z_values = []
-        for v in triangulation["vertices"]:
-            z_values.append(xy_to_z.get(tuple(v), group_mean_height))
-
-        z_values = np.array(z_values).reshape(-1, 1)
+        elif add_inside_points:
+            z_values = triangulation["attrs"]["height"]
+        else:
+            z_values = triangulation["attrs"]["height"]
+            z_values[...] = z_values.mean()
 
         # --- Build 3D vertices with real height ---
         triangulation["vertices"] = np.hstack(
@@ -386,6 +381,13 @@ class AlphaShapeDelaunayDtmProjection(
             "out_mesh_mode", self.out_mesh_modes[0]
         )
 
+        overloaded_conf["add_inside_points"] = conf.get(
+            "add_inside_points", False
+        )
+        overloaded_conf["fit_depth_map_to_height"] = conf.get(
+            "fit_depth_map_to_height", False
+        )
+
         polygon_schema = {
             "method": str,
             # common params
@@ -415,6 +417,8 @@ class AlphaShapeDelaunayDtmProjection(
             ),
             # Out params
             "out_mesh_mode": And(str, lambda x: x in self.out_mesh_modes),
+            "add_inside_points": bool,
+            "fit_depth_map_to_height": bool,
         }
         checker = Checker(polygon_schema)
 
@@ -507,6 +511,8 @@ class AlphaShapeDelaunayDtmProjection(
                 self.used_config["height_hist_min_peak_prominence"],
                 self.used_config["min_cluster_area"],
                 self.used_config["cluster_reassign_search_radius"],
+                self.used_config["add_inside_points"],
+                self.used_config["fit_depth_map_to_height"],
                 self.used_config["out_mesh_mode"],
                 out_epsg,
                 out_dir,

@@ -81,79 +81,43 @@ def get_dtm_mesh_vertices(
 
     valid_pts = np.argwhere(unclassified_selector)
 
-    width = point_cloud["x"].values.shape[0]
-    height = point_cloud["x"].values.shape[1]
+    # Pre-extract numpy arrays once to avoid repeated attribute access
+    x_vals = point_cloud["x"].values
+    y_vals = point_cloud["y"].values
 
-    center = pupt.get_closest_point_id(valid_pts, [width // 2, height // 2])
+    width = x_vals.shape[0]
+    height = x_vals.shape[1]
 
-    to_eval_ids = [center]
+    center_idx = pupt.get_closest_point_id(valid_pts, [width // 2, height // 2])
+    center = valid_pts[center_idx]
 
-    for ptid in to_eval_ids:
+    pcdz = pupt.evaluate_z_around(
+        point_cloud, unclassified_selector, center, percentile, search_offset
+    )
+    out_dict.data["vertices"].append(
+        [x_vals[center[0], center[1]], y_vals[center[0], center[1]], pcdz]
+    )
 
-        current_point = valid_pts[ptid]
+    # Compute boundary point indices once
+    idx_left    = valid_pts[np.argmin(valid_pts[:, 0])]
+    idx_right   = valid_pts[np.argmax(valid_pts[:, 0])]
+    idx_lowest  = valid_pts[np.argmin(valid_pts[:, 1])]
+    idx_highest = valid_pts[np.argmax(valid_pts[:, 1])]
 
-        pcdx = point_cloud["x"].values[current_point[0], current_point[1]]
-        pcdy = point_cloud["y"].values[current_point[0], current_point[1]]
-        pcdz = pupt.evaluate_z_around(
-            point_cloud,
-            unclassified_selector,
-            current_point,
-            percentile,
-            search_offset,
-        )
-
-        out_dict.data["vertices"].append([pcdx, pcdy, pcdz])
-
-    leftest = valid_pts[np.argmin(valid_pts[:, 0])]
-    rightest = valid_pts[np.argmax(valid_pts[:, 0])]
-    lowest = valid_pts[np.argmin(valid_pts[:, 1])]
-    highest = valid_pts[np.argmax(valid_pts[:, 1])]
+    def _make_bb_point(idx):
+        return [
+            x_vals[idx[0], idx[1]],
+            y_vals[idx[0], idx[1]],
+            pupt.evaluate_z_around(
+                point_cloud, unclassified_selector, idx, percentile, search_offset
+            ),
+        ]
 
     out_dict.data["bb_points"] = {
-        "left": [
-            point_cloud["x"].values[leftest[0], leftest[1]],
-            point_cloud["y"].values[leftest[0], leftest[1]],
-            pupt.evaluate_z_around(
-                point_cloud,
-                unclassified_selector,
-                leftest,
-                percentile,
-                search_offset,
-            ),
-        ],
-        "right": [
-            point_cloud["x"].values[rightest[0], rightest[1]],
-            point_cloud["y"].values[rightest[0], rightest[1]],
-            pupt.evaluate_z_around(
-                point_cloud,
-                unclassified_selector,
-                rightest,
-                percentile,
-                search_offset,
-            ),
-        ],
-        "up": [
-            point_cloud["x"].values[highest[0], highest[1]],
-            point_cloud["y"].values[highest[0], highest[1]],
-            pupt.evaluate_z_around(
-                point_cloud,
-                unclassified_selector,
-                highest,
-                percentile,
-                search_offset,
-            ),
-        ],
-        "down": [
-            point_cloud["x"].values[lowest[0], lowest[1]],
-            point_cloud["y"].values[lowest[0], lowest[1]],
-            pupt.evaluate_z_around(
-                point_cloud,
-                unclassified_selector,
-                lowest,
-                percentile,
-                search_offset,
-            ),
-        ],
+        "left":  _make_bb_point(idx_left),
+        "right": _make_bb_point(idx_right),
+        "up":    _make_bb_point(idx_highest),
+        "down":  _make_bb_point(idx_lowest),
     }
 
     cars_dataset.fill_dict(out_dict, saving_info=saving_info)
@@ -260,10 +224,7 @@ class PercentileOfUnclassifiedPoints(
         data_valid = False
         if isinstance(point_clouds, list):
             if isinstance(point_clouds[0], cars_dataset.CarsDataset):
-                data_valid = point_clouds[0].dataset_type in (
-                    "arrays",
-                    "points",
-                )
+                data_valid = point_clouds[0].dataset_type in ("arrays", "points")
 
         if not data_valid:
             message = (
@@ -313,81 +274,66 @@ class PercentileOfUnclassifiedPoints(
 
         crs_vertices = vertices[0, 0].data["crs"]
 
+        # Use a set for O(1) duplicate detection instead of O(n) list scan
+        seen_xys = set()
         list_xys = []
         list_zs = []
-
-        lrud = {
-            "l": None,
-            "r": None,
-            "u": None,
-            "d": None,
-        }
+        lrud = {"l": None, "r": None, "u": None, "d": None}
 
         for row in range(pcd.shape[0]):
             for col in range(pcd.shape[1]):
+                tile_data = vertices[row, col].data  # cache dict lookup
 
-                lrud = pupt.update_lrud(
-                    lrud,
-                    vertices[row, col].data["bb_points"],
-                )
+                lrud = pupt.update_lrud(lrud, tile_data["bb_points"])
 
-                for point in vertices[row, col].data["vertices"]:
-                    if point[:2] not in list_xys:
-                        list_xys.append(point[:2])
+                for point in tile_data["vertices"]:
+                    key = (point[0], point[1])
+                    if key not in seen_xys:
+                        seen_xys.add(key)
+                        list_xys.append([point[0], point[1]])
                         list_zs.append(point[2])
 
-        list_xys += [
-            [current_x, current_y]
-            for current_x, current_y, _z in [
-                lrud["l"],
-                lrud["r"],
-                lrud["u"],
-                lrud["d"],
-            ]
-        ]
-        list_zs += [
-            z for _x, _y, z in [lrud["l"], lrud["r"], lrud["u"], lrud["d"]]
-        ]
+        # Append LRUD boundary points
+        for pt in [lrud["l"], lrud["r"], lrud["u"], lrud["d"]]:
+            list_xys.append([pt[0], pt[1]])
+            list_zs.append(pt[2])
 
         dtm_mesh = libtr.triangulate({"vertices": list_xys})
 
         assert len(dtm_mesh["vertices"]) == len(list_zs)
 
         if self.used_config["filter_edges"]:
-            # remove "bad" triangles from the dtm
             dtm_mesh["triangles"] = pupt.filter_triangles_of_mesh(
                 dtm_mesh,
                 self.used_config["filter_max_length_to_median_edge_ratio"],
             )
 
-        # stitch back xys and zs together
-        dtm_mesh["vertices"] = [
-            [xy[0], xy[1], list_zs[i]] for i, xy in enumerate(list_xys)
-        ]
+        list_xys_arr = np.array(list_xys)
+        list_zs_arr = np.array(list_zs)
 
-        # compute uvs in color file
-        uv_maps = []
+        # Stitch xys and zs as a numpy array (avoids list comprehension)
+        dtm_mesh["vertices"] = np.column_stack([list_xys_arr, list_zs_arr])
 
         inv_mat_tr, clr_epsg = pupt.get_relevant_info(dsm_color)
 
-        for point_x, point_y, _point_z in dtm_mesh["vertices"]:
-            point = projection.points_cloud_conversion(
-                np.array([point_x, point_y]), crs_vertices, clr_epsg
-            )
-            # homogenous coords
-            point = np.array([point[0], point[1], 1])
-
-            uv_map = np.matmul(inv_mat_tr, point)
-            uv_map /= uv_map[2]
-            uv_map = uv_map[:2]  # back to normal coords
-            uv_map[1] = 1 - uv_map[1]
-            # uv = np.clip(uv, 0, 1)
-            uv_maps.append(uv_map)
-
-        dtm_mesh["vertices"] = projection.points_cloud_conversion(
-            np.array(dtm_mesh["vertices"]), crs_vertices, clr_epsg
+        # Single batch CRS conversion
+        pts_for_uv = projection.points_cloud_conversion(
+            list_xys_arr, crs_vertices, clr_epsg
         )
-        dtm_mesh["uvs"] = uv_maps
+        # Homogeneous coords: (N, 3)
+        pts_h = np.hstack([pts_for_uv, np.ones((len(pts_for_uv), 1))])
+        # Single batched matmul for all points
+        uv_maps_h = pts_h @ inv_mat_tr.T           # (N, 3)
+        uv_maps_h /= uv_maps_h[:, 2:3]             # normalize by w
+        uv_maps = uv_maps_h[:, :2].copy()           # (N, 2)
+        uv_maps[:, 1] = 1.0 - uv_maps[:, 1]        # flip V
+
+        dtm_mesh["uvs"] = uv_maps.tolist()
+
+        # Single batch CRS conversion for mesh vertices
+        dtm_mesh["vertices"] = projection.points_cloud_conversion(
+            dtm_mesh["vertices"], crs_vertices, clr_epsg
+        )
 
         dtm_mesh["crs"] = clr_epsg
         dtm_mesh["uv_matrix"] = inv_mat_tr
@@ -399,9 +345,7 @@ class PercentileOfUnclassifiedPoints(
         )
 
         with open(
-            os.path.join(out_dir, "dtm_mesh_attrs.json"),
-            "w",
-            encoding="utf8",
+            os.path.join(out_dir, "dtm_mesh_attrs.json"), "w", encoding="utf8"
         ) as desc:
             json.dump({"EPSG": out_epsg}, desc)
 
@@ -410,9 +354,7 @@ class PercentileOfUnclassifiedPoints(
             "dtm_mesh",
             "color.png",
             projection.points_cloud_conversion(
-                np.array(dtm_mesh["vertices"]),
-                clr_epsg,
-                out_epsg,
+                np.array(dtm_mesh["vertices"]), clr_epsg, out_epsg
             ),
             dtm_mesh["uvs"],
             dtm_mesh["triangles"],

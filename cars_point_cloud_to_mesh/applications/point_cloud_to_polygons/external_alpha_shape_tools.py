@@ -33,15 +33,18 @@ class Grid:
     which reduces to O(9*mean_nb_nodes_per_leaf) for r <= grid_factor
     """
 
-    def __init__(self, pts_full, grid_factor=None, depth_map=None, tile_id=None):
+    def __init__(self, pts_full, grid_factor=None, other_bands=None):
+        """
+        pts_full: (n, d) array of points
+        grid_factor: [x, y] cell size, defaults to [2, 2]
+        other_bands: dict of { band_name: np.ndarray of shape (n,) or (n, k) }
+                    e.g. {"height": arr_n, "rgb": arr_nxk}
+        """
         if grid_factor is None:
             grid_factor = [2, 2]
         pts = pts_full[:, :2]
         self.points = pts_full
-        self.other_bands = {
-            "depth_map": depth_map,
-            "tile_id": tile_id
-        }
+        self.other_bands = other_bands if other_bands is not None else {}
 
         self.grid_base = pts.min(axis=0)
         self.span = pts.max(axis=0) - self.grid_base
@@ -111,8 +114,7 @@ class Grid:
         grid_factor = self.grid_factor
 
         self.points = pts_full
-
-        for key in self.other_bands.keys():
+        for key in self.other_bands:
             if self.other_bands[key] is not None:
                 self.other_bands[key] = self.other_bands[key][mask != 0]
 
@@ -132,6 +134,75 @@ class Grid:
         for i, index in enumerate(grid_indices):
             self.grid[index[0], index[1]].append(i)
 
+    def add_points(self, new_pts_full, new_bands=None):
+        """
+        Adds new points to the grid and point list.
+        new_bands: dict of { band_name: np.ndarray of shape (m,) or (m, k) }
+                For any existing band not present in new_bands, data is copied
+                from the nearest existing point (2D euclidean distance).
+        """
+        n_new = new_pts_full.shape[0]
+        new_pts_2d = new_pts_full[:, :2]
+        if new_bands is None:
+            new_bands = {}
+
+        resolved_bands = {}
+        for key, existing in self.other_bands.items():
+            if existing is None:
+                resolved_bands[key] = None
+                continue
+
+            if key in new_bands:
+                resolved_bands[key] = np.asarray(new_bands[key])
+                continue
+
+            # Copy from nearest existing point
+            nearest_vals = np.empty((n_new, *existing.shape[1:]), dtype=existing.dtype)
+            search_r = float(np.max(self.grid_factor))
+            for i, pt in enumerate(new_pts_2d):
+                while True:
+                    candidates = []
+                    for cell in self.get_pts_by_cell_around(pt, search_r):
+                        candidates.extend(cell)
+                    if candidates:
+                        dists = np.linalg.norm(self.points[candidates, :2] - pt, axis=1)
+                        nearest_vals[i] = existing[candidates[np.argmin(dists)]]
+                        break
+                    search_r *= 2
+            resolved_bands[key] = nearest_vals
+
+        # Append band data
+        for key, new_vals in resolved_bands.items():
+            if new_vals is None:
+                continue
+            self.other_bands[key] = np.concatenate([self.other_bands[key], new_vals], axis=0)
+
+        # Append points
+        old_n = len(self.points)
+        self.points = np.concatenate([self.points, new_pts_full], axis=0)
+
+        # Expand grid if needed, else just insert
+        new_global_min = self.points[:, :2].min(axis=0)
+        new_global_max = self.points[:, :2].max(axis=0)
+        bounds_changed = (
+            np.any(new_global_min < self.grid_base)
+            or np.any(new_global_max > self.grid_base + self.span)
+        )
+
+        if bounds_changed:
+            self.grid_base = new_global_min
+            self.span = new_global_max - new_global_min
+            self.grid_size = np.ceil(self.span / self.grid_factor + 1).astype(int)
+            self.grid = np.empty(self.grid_size, dtype=object)
+            for i in np.ndindex(self.grid.shape):
+                self.grid[i] = []
+            all_indices = ((self.points[:, :2] - self.grid_base) / self.grid_factor).astype(int)
+            for i, index in enumerate(all_indices):
+                self.grid[index[0], index[1]].append(i)
+        else:
+            new_indices = ((new_pts_2d - self.grid_base) / self.grid_factor).astype(int)
+            for i, index in enumerate(new_indices):
+                self.grid[index[0], index[1]].append(old_n + i)
 
 @njit
 def angle_between(vec1: np.ndarray, vec2: np.ndarray) -> float:
