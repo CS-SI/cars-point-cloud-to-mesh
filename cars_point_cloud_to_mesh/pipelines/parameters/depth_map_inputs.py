@@ -78,6 +78,10 @@ def check_depth_map_inputs(conf, config_dir=None):
         cst.INDEX_DEPTH_MAP_AMBIGUITY: Or(str, None),
         cst.INDEX_DEPTH_MAP_FILLING: Or(str, None),
         cst.INDEX_DEPTH_MAP_EPSG: Or(str, int, None),
+        cst.INDEX_DEPTH_MAP_EDGES_MASK: Or(str, None),
+        cst.INDEX_DEPTH_MAP_EDGES_NORMALS: Or(str, None),
+        cst.INDEX_DEPTH_MAP_EDGES_DEPTH_MAP: Or(str, None),
+        cst.INDEX_DEPTH_MAP_EDGES_TILE_ID: Or(str, None),
     }
     checker_dm = Checker(dm_schema)
     for depth_map_key in conf[dm_cst.DEPTH_MAP]:
@@ -116,6 +120,18 @@ def check_depth_map_inputs(conf, config_dir=None):
         overloaded_conf[dm_cst.DEPTH_MAP][depth_map_key][
             cst.INDEX_DEPTH_MAP_FILLING
         ] = conf[dm_cst.DEPTH_MAP][depth_map_key].get("filling", None)
+        overloaded_conf[dm_cst.DEPTH_MAP][depth_map_key][
+            cst.INDEX_DEPTH_MAP_EDGES_MASK
+        ] = conf[dm_cst.DEPTH_MAP][depth_map_key].get("edges_mask", None)
+        overloaded_conf[dm_cst.DEPTH_MAP][depth_map_key][
+            cst.INDEX_DEPTH_MAP_EDGES_NORMALS
+        ] = conf[dm_cst.DEPTH_MAP][depth_map_key].get("edges_normals", None)
+        overloaded_conf[dm_cst.DEPTH_MAP][depth_map_key][
+            cst.INDEX_DEPTH_MAP_EDGES_DEPTH_MAP
+        ] = conf[dm_cst.DEPTH_MAP][depth_map_key].get("edges_depth_map", None)
+        overloaded_conf[dm_cst.DEPTH_MAP][depth_map_key][
+            cst.INDEX_DEPTH_MAP_EDGES_TILE_ID
+        ] = conf[dm_cst.DEPTH_MAP][depth_map_key].get("edges_tile_id", None)
 
 
         

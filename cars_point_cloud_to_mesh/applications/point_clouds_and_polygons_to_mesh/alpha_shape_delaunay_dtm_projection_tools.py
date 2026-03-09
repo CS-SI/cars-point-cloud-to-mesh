@@ -44,28 +44,50 @@ def get_grid(point_clouds, grid_size, building_index):
     """
 
     pts = []
+    dms = []
+    tid = []
     for pcd in point_clouds:
+
         classif = classif_to_stacked_array(pcd, building_index)
         classified_selector = np.logical_and(
             classif.flatten() > 0,
             np.logical_not(np.isnan(pcd["x"].values.flatten())),
         )
-        t_pts = np.column_stack(
-            (
-                pcd["x"].values.flatten()[classified_selector],
-                pcd["y"].values.flatten()[classified_selector],
-                pcd["z"].values.flatten()[classified_selector],
-            )
-        )
+        stack_vals = [
+            pcd["x"].values.flatten()[classified_selector],
+            pcd["y"].values.flatten()[classified_selector],
+            pcd["z"].values.flatten()[classified_selector],
+        ]
+        t_pts = np.column_stack(stack_vals)
         t_pts = projection.points_cloud_conversion(
             t_pts, pcd.attrs["epsg"], 32631
         )
         pts.append(t_pts)
 
+        edges_depth_map = None
+        edges_tile_id = None
+        if "edges_depth_map" in pcd:
+            edges_depth_map = pcd["edges_depth_map"].values[0].flatten()[classified_selector]
+            dms.append(edges_depth_map)
+        if "edges_tile_id" in pcd:
+            edges_tile_id = pcd["edges_tile_id"].values[0].flatten()[classified_selector]
+            tid.append(edges_tile_id)
+
     pts = np.row_stack(pts)
     if len(pts) == 0:
         return None
-    return east.Grid(pts, [grid_size, grid_size])
+
+    if len(dms) == 0:
+        dms = None
+    else:
+        dms = np.concatenate(dms)
+    if len(tid) == 0:
+        tid = None
+    else:
+        tid = np.concatenate(tid)
+        
+
+    return east.Grid(pts, [grid_size, grid_size], depth_map=dms, tile_id=tid)
 
 
 def group_by_external_poly(grid, polys, groups):
@@ -362,12 +384,11 @@ def get_point_in_contour(contour):
 
     return contour[0] - contour[0]  # (0, 0)
 
-
-def delaunay_triangulate(buildingids, grid):
+def delaunay_triangulate(buildingids, grid, inside_points=None):
     """
-    Returns the delaunay triangulation of a
-    building's contours, holes included, by
-    using the triangle library
+    Returns the constrained delaunay triangulation of a
+    building's contours (holes included), optionally
+    inserting inside_points into the triangulation.
 
     If for any reason no triangulation could
     be found, return None
@@ -381,17 +402,24 @@ def delaunay_triangulate(buildingids, grid):
 
     for i, contour in enumerate(buildingids):
 
-        # contours are open by default
-        pts.append(grid.points[contour][:, :2])
+        contour_pts = grid.points[contour][:, :2]
+        pts.append(contour_pts)
 
-        # offset ids by the number of points
+        # offset ids by the number of points already inserted
         sgs.append(
             np.array(get_segments(contour, closed=False), dtype=int) + nb_pts
         )
 
         if i > 0:
-            hls.append(get_point_in_contour(pts[-1]))
-        nb_pts += len(pts[-1])  # we removed a point :)
+            hls.append(get_point_in_contour(contour_pts))
+
+        nb_pts += len(contour_pts)
+
+    # add inside points
+    if inside_points is not None and len(inside_points) > 0:
+        pts.append(inside_points[:, :2])
+        # No segments added
+        nb_pts += len(inside_points)
 
     pts = np.vstack(pts)
     if len(pts) <= 2:

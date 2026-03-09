@@ -130,7 +130,23 @@ def mesh_point_cloud(
                 visvalingam_area,
             )
 
-        triangulation = asdt.delaunay_triangulate(building_ids, grid)
+        building_points = grid.points[pts_groups[building_key]]
+        building_depth = grid.other_bands["depth_map"][pts_groups[building_key]]
+        building_tile_id = grid.other_bands["tile_id"][pts_groups[building_key]]
+
+        boundary_indices = np.concatenate(building_ids)
+        all_indices = np.array(pts_groups[building_key])
+
+        inside_mask = ~np.isin(all_indices, boundary_indices)
+        inside_indices = all_indices[inside_mask]
+        inside_points = grid.points[inside_indices]
+
+        # Triangulate with interior points
+        triangulation = asdt.delaunay_triangulate(
+            building_ids,
+            grid,
+            inside_points=inside_points
+        )
 
         # No triangulation created (too few points)
         if triangulation is None:
@@ -138,12 +154,35 @@ def mesh_point_cloud(
 
         nb_top_verts = len(triangulation["vertices"])
 
-        # add the z component to vertices
-        triangulation["vertices"] = np.hstack(  # noqa: B909
-            (
-                triangulation["vertices"] + offset,
-                np.zeros((nb_top_verts, 1)) + group_mean_height,
+        for edge_tile_id in np.unique(building_tile_id):
+            mask = building_tile_id == edge_tile_id
+
+            building_depth[mask] -= building_depth[mask].min()
+            building_depth[mask] /= building_depth[mask].max()
+
+            building_depth[mask] = 1 - building_depth[mask]
+
+            building_depth[mask] *= (
+                building_points[mask, 2].max()
+                - building_points[mask, 2].min()
             )
+            building_depth[mask] += building_points[mask, 2].min()
+
+        group_mean_height = np.median(building_depth)
+
+        # add the z component to vertices
+        # Build XY->Z lookup
+        xy_to_z = {tuple(pt[:2]): building_depth[i] for i, pt in enumerate(building_points)}
+
+        z_values = []
+        for v in triangulation["vertices"]:
+            z_values.append(xy_to_z.get(tuple(v), group_mean_height))
+
+        z_values = np.array(z_values).reshape(-1, 1)
+
+        # --- Build 3D vertices with real height ---
+        triangulation["vertices"] = np.hstack(
+            (triangulation["vertices"] + offset, z_values)
         )
 
         triangulation["vertices"] = projection.points_cloud_conversion(

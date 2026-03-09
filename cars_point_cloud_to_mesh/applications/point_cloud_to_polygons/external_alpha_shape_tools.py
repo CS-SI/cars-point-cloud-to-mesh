@@ -33,11 +33,16 @@ class Grid:
     which reduces to O(9*mean_nb_nodes_per_leaf) for r <= grid_factor
     """
 
-    def __init__(self, pts_full, grid_factor=None):
+    def __init__(self, pts_full, grid_factor=None, depth_map=None, tile_id=None):
         if grid_factor is None:
             grid_factor = [2, 2]
         pts = pts_full[:, :2]
         self.points = pts_full
+        self.other_bands = {
+            "depth_map": depth_map,
+            "tile_id": tile_id
+        }
+
         self.grid_base = pts.min(axis=0)
         self.span = pts.max(axis=0) - self.grid_base
         self.grid_factor = np.array(grid_factor)
@@ -106,6 +111,10 @@ class Grid:
         grid_factor = self.grid_factor
 
         self.points = pts_full
+
+        for key in self.other_bands.keys():
+            if self.other_bands[key] is not None:
+                self.other_bands[key] = self.other_bands[key][mask != 0]
 
         pts = pts_full[:, :2]
         self.grid_base = pts.min(axis=0)

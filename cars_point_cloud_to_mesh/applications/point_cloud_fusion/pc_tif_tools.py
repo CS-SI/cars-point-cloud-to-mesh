@@ -611,6 +611,38 @@ def generate_pc_wrapper(
             if cst.BAND_CLASSIF not in coords:
                 coords[cst.BAND_CLASSIF] = descriptions
 
+        elif key == cst.INDEX_DEPTH_MAP_EDGES_DEPTH_MAP:
+            data = read_image_full(cloud[key], window=window, squeeze=False)
+            descriptions = list(inputs.get_descriptions_bands(cloud[key]))
+            values[cst.INDEX_DEPTH_MAP_EDGES_DEPTH_MAP] = ([cst.BAND_EDGES_DEPTH_MAP, cst.ROW, cst.COL], data)
+
+            if cst.INDEX_DEPTH_MAP_EDGES_DEPTH_MAP not in coords:
+                coords[cst.BAND_EDGES_DEPTH_MAP] = descriptions
+
+        elif key == cst.INDEX_DEPTH_MAP_EDGES_NORMALS:
+            data = read_image_full(cloud[key], window=window, squeeze=False)
+            descriptions = list(inputs.get_descriptions_bands(cloud[key]))
+            values[cst.INDEX_DEPTH_MAP_EDGES_NORMALS] = ([cst.BAND_EDGES_NORMALS, cst.ROW, cst.COL], data)
+
+            if cst.INDEX_DEPTH_MAP_EDGES_NORMALS not in coords:
+                coords[cst.BAND_EDGES_NORMALS] = descriptions
+
+        elif key == cst.INDEX_DEPTH_MAP_EDGES_TILE_ID:
+            data = read_image_full(cloud[key], window=window, squeeze=False)
+            descriptions = list(inputs.get_descriptions_bands(cloud[key]))
+            values[cst.INDEX_DEPTH_MAP_EDGES_TILE_ID] = ([cst.BAND_EDGES_TILE_ID, cst.ROW, cst.COL], data)
+
+            if cst.INDEX_DEPTH_MAP_EDGES_TILE_ID not in coords:
+                coords[cst.BAND_EDGES_TILE_ID] = descriptions
+
+        elif key == cst.INDEX_DEPTH_MAP_EDGES_DEPTH_MAP:
+            data = read_image_full(cloud[key], window=window, squeeze=False)
+            descriptions = list(inputs.get_descriptions_bands(cloud[key]))
+            values[cst.INDEX_DEPTH_MAP_EDGES_DEPTH_MAP] = ([cst.BAND_EDGES_DEPTH_MAP, cst.ROW, cst.COL], data)
+
+            if cst.INDEX_DEPTH_MAP_EDGES_DEPTH_MAP not in coords:
+                coords[cst.BAND_EDGES_DEPTH_MAP] = descriptions
+
         elif key == cst.INDEX_DEPTH_MAP_COLOR:
             data = read_image_full(cloud[key], window=window, squeeze=False)
             descriptions = list(inputs.get_descriptions_bands(cloud[key]))

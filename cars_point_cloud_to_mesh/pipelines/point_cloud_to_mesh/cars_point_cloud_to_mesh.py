@@ -141,13 +141,18 @@ class PointCloudToMeshPipeline(PipelineTemplate):
             copied_classification_buildings_description
         )
         overloaded_conf["dsm_color"] = copied_dsm_color
-
         dm_schema = {
             cst.INDEX_DEPTH_MAP_X: str,
             cst.INDEX_DEPTH_MAP_Y: str,
             cst.INDEX_DEPTH_MAP_Z: str,
             cst.INDEX_DEPTH_MAP_COLOR: str,
             cst.INDEX_DEPTH_MAP_MASK: Or(str, None),
+            cst.INDEX_DEPTH_MAP_FILLING: Or(str, None),
+            # edges data
+            cst.INDEX_DEPTH_MAP_EDGES_MASK: Or(str, None),
+            cst.INDEX_DEPTH_MAP_EDGES_NORMALS: Or(str, None),
+            cst.INDEX_DEPTH_MAP_EDGES_DEPTH_MAP: Or(str, None),
+            cst.INDEX_DEPTH_MAP_EDGES_TILE_ID: Or(str, None),
             # also, config.json has classif named classification because
             # pc_inputs requires it :)
             cst.INDEX_DEPTH_MAP_CLASSIFICATION: str,  # require classif
@@ -159,6 +164,7 @@ class PointCloudToMeshPipeline(PipelineTemplate):
         checker_dm = Checker(dm_schema)
 
         for depth_map_key in overloaded_conf[dm_cst.DEPTH_MAP]:
+            print(overloaded_conf[dm_cst.DEPTH_MAP][depth_map_key])
             checker_dm.validate(
                 overloaded_conf[dm_cst.DEPTH_MAP][depth_map_key]
             )
