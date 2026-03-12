@@ -164,7 +164,6 @@ class PointCloudToMeshPipeline(PipelineTemplate):
         checker_dm = Checker(dm_schema)
 
         for depth_map_key in overloaded_conf[dm_cst.DEPTH_MAP]:
-            print(overloaded_conf[dm_cst.DEPTH_MAP][depth_map_key])
             checker_dm.validate(
                 overloaded_conf[dm_cst.DEPTH_MAP][depth_map_key]
             )
